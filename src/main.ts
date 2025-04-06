@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
 
@@ -7,13 +7,21 @@ if (started) {
   app.quit();
 }
 
+// TODO: Remove if not in development mode
+const MAIN_WINDOW_VITE_DEV_SERVER_URL = 'http://localhost:5173';
+const MAIN_WINDOW_VITE_NAME = 'renderer';
+
 const createWindow = () => {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: 700,
+    height: 60,
+    frame: false,
+    resizable: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   });
 
@@ -27,6 +35,12 @@ const createWindow = () => {
   // Open the DevTools.
   mainWindow.webContents.openDevTools();
 };
+
+// IPC handler for query
+ipcMain.handle('handleQuery', (event, query) => {
+  console.log('Query received:', query);
+  return { success: true };
+});
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

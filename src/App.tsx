@@ -4,6 +4,10 @@ import { Separator } from "@/components/ui/separator";
 import { Avatar } from "@/components/ui/avatar";
 import { useEffect, useState, useRef } from "react";
 import { X, Search, GithubIcon, MousePointer, Keyboard } from "lucide-react";
+import {
+  EXPANDED_MAIN_WINDOW_HEIGHT,
+  MAIN_WINDOW_HEIGHT,
+} from "@/lib/constants";
 
 // Icons for different message types
 const MessageIcon = ({
@@ -102,10 +106,8 @@ function App() {
 
   return (
     <div
-      className="flex flex-col w-screen shadow-lg h-full"
+      className="w-screen shadow-lg h-full"
       style={{
-        height: messages.length > 0 ? "100%" : "60px",
-        transition: "height 0.3s ease-in-out",
         borderRadius: "8px",
         backgroundColor: "var(--background)",
         color: "var(--foreground)",
@@ -137,45 +139,50 @@ function App() {
           </Button>
         )}
       </div>
+      <div
+        style={{
+          maxHeight: `${EXPANDED_MAIN_WINDOW_HEIGHT - MAIN_WINDOW_HEIGHT}px`,
+        }}
+      >
+        {/* Only show divider and messages if we have messages */}
+        {messages.length > 0 && (
+          <>
+            <Separator className="w-full opacity-30" />
 
-      {/* Only show divider and messages if we have messages */}
-      {messages.length > 0 && (
-        <>
-          <Separator className="w-full opacity-30" />
-
-          {/* Messages container */}
-          <div
-            ref={messageRef}
-            className="w-full overflow-auto"
-            style={{
-              maxHeight: `calc(100% - 60px)`,
-            }}
-          >
-            {messages.map((msg, index) => (
-              <div
-                key={index}
-                className="flex items-start px-4 py-3 hover:bg-secondary/40 transition-colors"
-              >
-                <Avatar className="h-8 w-8 mr-3 bg-background border flex items-center justify-center">
-                  <MessageIcon
-                    type={msg.type}
-                    actionType={msg.actionDetails?.type}
-                  />
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm">{msg.content}</div>
-                  <div className="text-xs text-muted-foreground truncate mt-1">
-                    {msg.type === "user-input"
-                      ? "User query"
-                      : msg.actionDetails?.type || "Action"}{" "}
-                    — {new Date(msg.timestamp).toLocaleTimeString()}
+            {/* Messages container */}
+            <div
+              ref={messageRef}
+              className="w-full overflow-auto"
+              style={{
+                maxHeight: `calc(100% - 60px)`,
+              }}
+            >
+              {messages.map((msg, index) => (
+                <div
+                  key={index}
+                  className="flex items-start px-4 py-3 hover:bg-secondary/40 transition-colors"
+                >
+                  <Avatar className="h-8 w-8 mr-3 bg-background border flex items-center justify-center">
+                    <MessageIcon
+                      type={msg.type}
+                      actionType={msg.actionDetails?.type}
+                    />
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm">{msg.content}</div>
+                    <div className="text-xs text-muted-foreground truncate mt-1">
+                      {msg.type === "user-input"
+                        ? "User query"
+                        : msg.actionDetails?.type || "Action"}{" "}
+                      — {new Date(msg.timestamp).toLocaleTimeString()}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

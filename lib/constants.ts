@@ -1,0 +1,4 @@
+export const MAIN_WINDOW_HEIGHT = 60;
+export const EXPANDED_MAIN_WINDOW_HEIGHT = 300;
+export const MAIN_WINDOW_WIDTH = 700;
+export const EXPANDED_MAIN_WINDOW_WIDTH = 700;

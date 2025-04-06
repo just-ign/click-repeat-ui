@@ -3,6 +3,9 @@ import path from "node:path";
 import started from "electron-squirrel-startup";
 import { setupQueryHandler } from "./general-agent";
 
+const MAIN_WINDOW_HEIGHT = 60;
+const MAIN_WINDOW_WIDTH = 700;
+
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
   app.quit();
@@ -11,10 +14,6 @@ if (started) {
 // TODO: Remove if not in development mode
 const MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
 const MAIN_WINDOW_VITE_NAME = "renderer";
-export const MAIN_WINDOW_HEIGHT = 60;
-export const MAIN_WINDOW_WIDTH = 700;
-export const EXPANDED_MAIN_WINDOW_HEIGHT = 300;
-export const EXPANDED_MAIN_WINDOW_WIDTH = 700;
 
 const createWindow = () => {
   // Get the primary display dimensions

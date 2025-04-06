@@ -7,12 +7,11 @@ import {
   keyboard,
   Key,
 } from "@nut-tree-fork/nut-js";
-import {
-  EXPANDED_MAIN_WINDOW_HEIGHT,
-  EXPANDED_MAIN_WINDOW_WIDTH,
-  MAIN_WINDOW_HEIGHT,
-  MAIN_WINDOW_WIDTH,
-} from "./main";
+
+const EXPANDED_MAIN_WINDOW_HEIGHT = 300;
+const EXPANDED_MAIN_WINDOW_WIDTH = 700;
+const MAIN_WINDOW_HEIGHT = 60;
+const MAIN_WINDOW_WIDTH = 700;
 
 // Action type enum
 export enum ActionType {
@@ -90,26 +89,26 @@ function simulateSSEResponse(): AgentAction[] {
       x: 500,
       y: 300,
     },
-    {
-      type: ActionType.MOUSE_MOVE,
-      x: 100,
-      y: 100,
-    },
-    {
-      type: ActionType.MOUSE_MOVE,
-      x: 200,
-      y: 200,
-    },
-    {
-      type: ActionType.MOUSE_MOVE,
-      x: 300,
-      y: 300,
-    },
-    {
-      type: ActionType.MOUSE_MOVE,
-      x: 400,
-      y: 500,
-    },
+    // {
+    //   type: ActionType.MOUSE_MOVE,
+    //   x: 100,
+    //   y: 100,
+    // },
+    // {
+    //   type: ActionType.MOUSE_MOVE,
+    //   x: 200,
+    //   y: 200,
+    // },
+    // {
+    //   type: ActionType.MOUSE_MOVE,
+    //   x: 300,
+    //   y: 300,
+    // },
+    // {
+    //   type: ActionType.MOUSE_MOVE,
+    //   x: 400,
+    //   y: 500,
+    // },
   ];
 }
 

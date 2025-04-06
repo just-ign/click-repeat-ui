@@ -43,7 +43,6 @@ function App() {
     // Add listener for progress updates and store the cleanup function
     const removeListener = window.electronAPI.onAgentProgress(
       (message: ProgressMessage) => {
-        console.log("Received message:", message);
         setMessages((prevMessages) => [message, ...prevMessages]); // Add new messages to top
       }
     );
@@ -88,14 +87,9 @@ function App() {
 
   const handleSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && inputValue.trim()) {
-      window.electronAPI
-        .handleQuery(inputValue)
-        .then((result) => {
-          console.log("Query result:", result);
-        })
-        .catch((err) => {
-          console.error("Error in handleQuery:", err);
-        });
+      window.electronAPI.handleQuery(inputValue).catch((err) => {
+        console.error("Error in handleQuery:", err);
+      });
 
       setInputValue("");
     }

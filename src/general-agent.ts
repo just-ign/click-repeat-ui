@@ -158,8 +158,6 @@ async function executeAction(action: AgentAction): Promise<void> {
   };
   sendProgressUpdate(progressMessage);
 
-  console.log(`Executing action: ${action.type}`);
-
   let button: Button;
   let dragButton: Button;
   const keyMap: { [key: string]: Key } = {
@@ -398,8 +396,6 @@ function cubicBezier(
 export function setupQueryHandler(): void {
   // Set up the main query handler
   ipcMain.handle("handleQuery", async (event, query) => {
-    console.log("Query received:", query);
-
     // Get the window from the event
     const window = BrowserWindow.fromWebContents(event.sender);
 

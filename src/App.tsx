@@ -5,12 +5,6 @@ import { Avatar } from "@/components/ui/avatar";
 import { useEffect, useState, useRef } from "react";
 import { X, Search, GithubIcon, MousePointer, Keyboard } from "lucide-react";
 
-// Maximum height we'll allow the window to expand to
-const MAX_WINDOW_HEIGHT = 600;
-
-// Scale factor to make window a bit smaller than the full width
-const WIDTH_SCALE_FACTOR = 0.8;
-
 // Icons for different message types
 const MessageIcon = ({
   type,
@@ -82,21 +76,9 @@ function App() {
   useEffect(() => {
     const handleWindowResize = async () => {
       if (messages.length === 0) {
-        // If messages are empty, use the small window size (60px height)
-        await window.electronAPI.resizeWindow({
-          height: 60,
-          animated: true,
-        });
+        await window.electronAPI.minimizeWindow();
       } else {
-        // If messages exist, make it a square, but cap at MAX_WINDOW_HEIGHT and scale down a bit
-        const targetHeight = Math.min(
-          windowWidth.current * WIDTH_SCALE_FACTOR,
-          MAX_WINDOW_HEIGHT
-        );
-        await window.electronAPI.resizeWindow({
-          height: targetHeight,
-          animated: true,
-        });
+        await window.electronAPI.expandWindow();
       }
     };
 
@@ -132,7 +114,7 @@ function App() {
         transition: "height 0.3s ease-in-out",
         borderRadius: "8px",
         backgroundColor: "var(--background)",
-        color: "var(--foreground)"
+        color: "var(--foreground)",
       }}
     >
       {/* Input area with clear button */}
@@ -147,7 +129,7 @@ function App() {
           style={{
             color: "var(--foreground)",
             boxShadow: "none",
-            outline: "none"
+            outline: "none",
           }}
         />
         {messages.length > 0 && (
@@ -173,7 +155,6 @@ function App() {
             className="w-full overflow-auto"
             style={{
               maxHeight: `calc(100% - 60px)`,
-              transition: "max-height 0.3s ease-in-out",
             }}
           >
             {messages.map((msg, index) => (

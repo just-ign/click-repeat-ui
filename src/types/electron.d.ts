@@ -2,11 +2,11 @@
 
 // Action type enum
 enum ActionType {
-  MOUSE_MOVE = 'mouse_move',
-  MOUSE_CLICK = 'mouse_click',
-  MOUSE_DRAG = 'mouse_drag',
-  KEYBOARD_TYPE = 'keyboard_type',
-  KEYBOARD_PRESS = 'keyboard_press'
+  MOUSE_MOVE = "mouse_move",
+  MOUSE_CLICK = "mouse_click",
+  MOUSE_DRAG = "mouse_drag",
+  KEYBOARD_TYPE = "keyboard_type",
+  KEYBOARD_PRESS = "keyboard_press",
 }
 
 // Base interface for all actions
@@ -26,7 +26,7 @@ interface MouseClickAction extends Action {
   type: ActionType.MOUSE_CLICK;
   x: number;
   y: number;
-  button: 'left' | 'right' | 'middle';
+  button: "left" | "right" | "middle";
   doubleClick?: boolean;
 }
 
@@ -37,7 +37,7 @@ interface MouseDragAction extends Action {
   startY: number;
   endX: number;
   endY: number;
-  button: 'left' | 'right' | 'middle';
+  button: "left" | "right" | "middle";
 }
 
 // Keyboard type action (for typing text)
@@ -53,10 +53,15 @@ interface KeyboardPressAction extends Action {
 }
 
 // Union type of all possible actions
-type AgentAction = MouseMoveAction | MouseClickAction | MouseDragAction | KeyboardTypeAction | KeyboardPressAction;
+type AgentAction =
+  | MouseMoveAction
+  | MouseClickAction
+  | MouseDragAction
+  | KeyboardTypeAction
+  | KeyboardPressAction;
 
 interface ProgressMessage {
-  type: 'user-input' | 'action-progress';
+  type: "user-input" | "action-progress";
   content: string;
   timestamp: number;
   actionDetails?: AgentAction;
@@ -64,9 +69,13 @@ interface ProgressMessage {
 
 interface Window {
   electronAPI: {
-    handleQuery: (query: string) => Promise<{ success: boolean; actionsPerformed?: number }>;
-    onAgentProgress: (callback: (message: ProgressMessage) => void) => (() => void);
-    resizeWindow: (options: { height: number, animated: boolean }) => 
-      Promise<{ success: boolean; error?: string }>;
-  }
-} 
+    handleQuery: (
+      query: string
+    ) => Promise<{ success: boolean; actionsPerformed?: number }>;
+    onAgentProgress: (
+      callback: (message: ProgressMessage) => void
+    ) => () => void;
+    expandWindow: () => Promise<{ success: boolean; error?: string }>;
+    minimizeWindow: () => Promise<{ success: boolean; error?: string }>;
+  };
+}

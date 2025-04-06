@@ -1,7 +1,7 @@
-import { app, BrowserWindow, screen } from 'electron';
-import path from 'node:path';
-import started from 'electron-squirrel-startup';
-import { setupQueryHandler } from './general-agent';
+import { app, BrowserWindow, screen } from "electron";
+import path from "node:path";
+import started from "electron-squirrel-startup";
+import { setupQueryHandler } from "./general-agent";
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -9,24 +9,27 @@ if (started) {
 }
 
 // TODO: Remove if not in development mode
-const MAIN_WINDOW_VITE_DEV_SERVER_URL = 'http://localhost:5173';
-const MAIN_WINDOW_VITE_NAME = 'renderer';
+const MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
+const MAIN_WINDOW_VITE_NAME = "renderer";
+export const MAIN_WINDOW_HEIGHT = 60;
+export const MAIN_WINDOW_WIDTH = 700;
+export const EXPANDED_MAIN_WINDOW_HEIGHT = 300;
+export const EXPANDED_MAIN_WINDOW_WIDTH = 700;
 
 const createWindow = () => {
   // Get the primary display dimensions
   const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: displayWidth, height: displayHeight } = primaryDisplay.workAreaSize;
-  
+  const { width: displayWidth, height: displayHeight } =
+    primaryDisplay.workAreaSize;
+
   // Calculate window position to place it at the top 30% area
-  const windowWidth = 700;
-  const windowHeight = 60;
-  const windowX = Math.floor((displayWidth - windowWidth) / 2); // Center horizontally
+  const windowX = Math.floor((displayWidth - MAIN_WINDOW_WIDTH) / 2); // Center horizontally
   const windowY = Math.floor(displayHeight * 0.3); // Place at 30% from the top
-  
+
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: windowWidth,
-    height: windowHeight,
+    width: MAIN_WINDOW_WIDTH,
+    height: MAIN_WINDOW_HEIGHT,
     x: windowX,
     y: windowY,
     frame: false,
@@ -36,7 +39,7 @@ const createWindow = () => {
     maximizable: false,
     acceptFirstMouse: true, // Activate the window when clicking on any UI element
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
     },
@@ -49,11 +52,10 @@ const createWindow = () => {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
+    mainWindow.loadFile(
+      path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
+    );
   }
-
-  // Open the DevTools.
-  mainWindow.webContents.openDevTools();
 };
 
 // Set up the query handler
@@ -62,18 +64,18 @@ setupQueryHandler();
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
-app.on('ready', createWindow);
+app.on("ready", createWindow);
 
 // Quit when all windows are closed, except on macOS. There, it's common
 // for applications and their menu bar to stay active until the user quits
 // explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
     app.quit();
   }
 });
 
-app.on('activate', () => {
+app.on("activate", () => {
   // On OS X it's common to re-create a window in the app when the
   // dock icon is clicked and there are no other windows open.
   if (BrowserWindow.getAllWindows().length === 0) {

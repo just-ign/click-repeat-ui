@@ -1,29 +1,7 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, screen } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
-import {mouse, Point, straightTo} from "@nut-tree-fork/nut-js";
-
-async function drawFigureEight(centerX: number, centerY: number, size: number): Promise<void> {
-    // Create points along a figure 8 path
-    const steps = 30;
-    const points: Point[] = [];
-    
-    // Generate points for the figure 8
-    for (let i = 0; i < steps; i++) {
-        const angle = (i / steps) * Math.PI * 2;
-        // Use parametric equation for a figure 8 (lemniscate of Bernoulli)
-        const x = centerX + size * Math.sin(angle) / (1 + Math.cos(angle) * Math.cos(angle));
-        const y = centerY + size * Math.sin(angle) * Math.cos(angle) / (1 + Math.cos(angle) * Math.cos(angle));
-        points.push(new Point(Math.round(x), Math.round(y)));
-    }
-    
-    // Move mouse through each point
-    for (const point of points) {
-        await mouse.move(straightTo(point));
-        // Small delay to slow down the movement and make it visible
-        await new Promise(resolve => setTimeout(resolve, 10));
-    }
-}
+import { setupQueryHandler } from './general-agent';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -31,22 +9,41 @@ if (started) {
 }
 
 // TODO: Remove if not in development mode
-// const MAIN_WINDOW_VITE_DEV_SERVER_URL = 'http://localhost:5173';
-// const MAIN_WINDOW_VITE_NAME = 'renderer';
+const MAIN_WINDOW_VITE_DEV_SERVER_URL = 'http://localhost:5173';
+const MAIN_WINDOW_VITE_NAME = 'renderer';
 
 const createWindow = () => {
+  // Get the primary display dimensions
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: displayWidth, height: displayHeight } = primaryDisplay.workAreaSize;
+  
+  // Calculate window position to place it at the top 30% area
+  const windowWidth = 700;
+  const windowHeight = 60;
+  const windowX = Math.floor((displayWidth - windowWidth) / 2); // Center horizontally
+  const windowY = Math.floor(displayHeight * 0.3); // Place at 30% from the top
+  
   // Create the browser window.
   const mainWindow = new BrowserWindow({
-    width: 700,
-    height: 60,
+    width: windowWidth,
+    height: windowHeight,
+    x: windowX,
+    y: windowY,
     frame: false,
     resizable: false,
+    movable: true, // Make sure window is movable
+    fullscreenable: false,
+    maximizable: false,
+    acceptFirstMouse: true, // Activate the window when clicking on any UI element
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
+
+  // Allow window to be moved between different displays
+  mainWindow.setMovable(true);
 
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -59,15 +56,8 @@ const createWindow = () => {
   mainWindow.webContents.openDevTools();
 };
 
-// IPC handler for query
-ipcMain.handle('handleQuery', async (event, query) => {
-  console.log('Query received:', query);
-  
-  // Draw a figure 8 with the mouse
-  await drawFigureEight(400, 400, 200);
-  
-  return { success: true };
-});
+// Set up the query handler
+setupQueryHandler();
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.

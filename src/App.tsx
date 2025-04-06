@@ -106,7 +106,7 @@ function App() {
 
   return (
     <div
-      className="w-screen shadow-lg h-full"
+      className="w-screen shadow-lg h-full scrollbar-hide"
       style={{
         borderRadius: "8px",
         backgroundColor: "var(--background)",
@@ -114,7 +114,9 @@ function App() {
       }}
     >
       {/* Input area with clear button */}
-      <div className="w-full flex items-center px-3 h-[60px] draggable rounded-t-lg bg-background">
+      <div
+        className={`w-full flex items-center px-3 h-[${MAIN_WINDOW_HEIGHT}px] draggable rounded-t-lg bg-background`}
+      >
         <Search className="h-5 w-5 text-muted-foreground mr-2" />
         <Input
           placeholder="Gen Agent"
@@ -139,11 +141,7 @@ function App() {
           </Button>
         )}
       </div>
-      <div
-        style={{
-          maxHeight: `${EXPANDED_MAIN_WINDOW_HEIGHT - MAIN_WINDOW_HEIGHT}px`,
-        }}
-      >
+      <div>
         {/* Only show divider and messages if we have messages */}
         {messages.length > 0 && (
           <>
@@ -154,7 +152,9 @@ function App() {
               ref={messageRef}
               className="w-full overflow-auto"
               style={{
-                maxHeight: `calc(100% - 60px)`,
+                maxHeight: `${
+                  EXPANDED_MAIN_WINDOW_HEIGHT - MAIN_WINDOW_HEIGHT
+                }px`,
               }}
             >
               {messages.map((msg, index) => (

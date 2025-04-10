@@ -1,67 +1,37 @@
-// Type definitions for Electron API
+type AgentActionType =
+  | "key"
+  | "type"
+  | "mouse_move"
+  | "left_click"
+  | "left_click_drag"
+  | "right_click"
+  | "middle_click"
+  | "double_click"
+  | "screenshot"
+  | "cursor_position"
+  | "left_mouse_down"
+  | "left_mouse_up"
+  | "scroll"
+  | "hold_key"
+  | "wait"
+  | "triple_click";
 
-// Action type enum
-enum ActionType {
-  MOUSE_MOVE = "mouse_move",
-  MOUSE_CLICK = "mouse_click",
-  MOUSE_DRAG = "mouse_drag",
-  KEYBOARD_TYPE = "keyboard_type",
-  KEYBOARD_PRESS = "keyboard_press",
-}
+type ScrollDirection = "up" | "down" | "left" | "right";
 
-// Base interface for all actions
-interface Action {
-  type: ActionType;
-}
+type AgentMessageType = "user-input" | "action-progress";
 
-// Mouse movement action
-interface MouseMoveAction extends Action {
-  type: ActionType.MOUSE_MOVE;
-  x: number;
-  y: number;
-}
-
-// Mouse click action
-interface MouseClickAction extends Action {
-  type: ActionType.MOUSE_CLICK;
-  x: number;
-  y: number;
-  button: "left" | "right" | "middle";
-  doubleClick?: boolean;
-}
-
-// Mouse drag action
-interface MouseDragAction extends Action {
-  type: ActionType.MOUSE_DRAG;
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-  button: "left" | "right" | "middle";
-}
-
-// Keyboard type action (for typing text)
-interface KeyboardTypeAction extends Action {
-  type: ActionType.KEYBOARD_TYPE;
+interface AgentAction {
+  action: AgentActionType;
   text: string;
+  coordinate?: number[];
+  scroll_direction?: ScrollDirection;
+  scroll_amount?: number;
+  duration?: number;
+  key?: string;
 }
 
-// Keyboard press action (for special keys)
-interface KeyboardPressAction extends Action {
-  type: ActionType.KEYBOARD_PRESS;
-  key: string;
-}
-
-// Union type of all possible actions
-type AgentAction =
-  | MouseMoveAction
-  | MouseClickAction
-  | MouseDragAction
-  | KeyboardTypeAction
-  | KeyboardPressAction;
-
-interface ProgressMessage {
-  type: "user-input" | "action-progress";
+interface AgentMessage {
+  type: AgentMessageType;
   content: string;
   timestamp: number;
   actionDetails?: AgentAction;
@@ -73,7 +43,7 @@ interface Window {
       query: string
     ) => Promise<{ success: boolean; actionsPerformed?: number }>;
     onAgentProgress: (
-      callback: (message: ProgressMessage) => void
+      callback: (message: AgentMessage) => void
     ) => () => void;
     expandWindow: () => Promise<{ success: boolean; error?: string }>;
     minimizeWindow: () => Promise<{ success: boolean; error?: string }>;

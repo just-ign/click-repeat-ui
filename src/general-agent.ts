@@ -13,107 +13,13 @@ const EXPANDED_MAIN_WINDOW_WIDTH = 700;
 const MAIN_WINDOW_HEIGHT = 60;
 const MAIN_WINDOW_WIDTH = 700;
 
-// Action type enum
-export enum ActionType {
-  MOUSE_MOVE = "mouse_move",
-  MOUSE_CLICK = "mouse_click",
-  MOUSE_DRAG = "mouse_drag",
-  KEYBOARD_TYPE = "keyboard_type",
-  KEYBOARD_PRESS = "keyboard_press",
-}
-
-// Base interface for all actions
-export interface Action {
-  type: ActionType;
-}
-
-// Mouse movement action
-export interface MouseMoveAction extends Action {
-  type: ActionType.MOUSE_MOVE;
-  x: number;
-  y: number;
-}
-
-// Mouse click action
-export interface MouseClickAction extends Action {
-  type: ActionType.MOUSE_CLICK;
-  x: number;
-  y: number;
-  button: "left" | "right" | "middle";
-  doubleClick?: boolean;
-}
-
-// Mouse drag action
-export interface MouseDragAction extends Action {
-  type: ActionType.MOUSE_DRAG;
-  startX: number;
-  startY: number;
-  endX: number;
-  endY: number;
-  button: "left" | "right" | "middle";
-}
-
-// Keyboard type action (for typing text)
-export interface KeyboardTypeAction extends Action {
-  type: ActionType.KEYBOARD_TYPE;
-  text: string;
-}
-
-// Keyboard press action (for special keys)
-export interface KeyboardPressAction extends Action {
-  type: ActionType.KEYBOARD_PRESS;
-  key: string;
-}
-
-// Message type for progress updates
-export interface ProgressMessage {
-  type: "user-input" | "action-progress";
-  content: string;
-  timestamp: number;
-  actionDetails?: AgentAction;
-}
-
-// Union type of all possible actions
-export type AgentAction =
-  | MouseMoveAction
-  | MouseClickAction
-  | MouseDragAction
-  | KeyboardTypeAction
-  | KeyboardPressAction;
-
 // Function to simulate an SSE response with a series of actions
 function simulateSSEResponse(): AgentAction[] {
-  return [
-    {
-      type: ActionType.MOUSE_MOVE,
-      x: 500,
-      y: 300,
-    },
-    // {
-    //   type: ActionType.MOUSE_MOVE,
-    //   x: 100,
-    //   y: 100,
-    // },
-    // {
-    //   type: ActionType.MOUSE_MOVE,
-    //   x: 200,
-    //   y: 200,
-    // },
-    // {
-    //   type: ActionType.MOUSE_MOVE,
-    //   x: 300,
-    //   y: 300,
-    // },
-    // {
-    //   type: ActionType.MOUSE_MOVE,
-    //   x: 400,
-    //   y: 500,
-    // },
-  ];
+  return [];
 }
 
 // Helper function to send progress updates to the renderer
-function sendProgressUpdate(message: ProgressMessage): void {
+function sendProgressUpdate(message: AgentMessage): void {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
     windows[0].webContents.send("agent-progress", message);
@@ -122,43 +28,93 @@ function sendProgressUpdate(message: ProgressMessage): void {
 
 // Helper function to format action details for human-readable output
 function formatActionDetails(action: AgentAction): string {
-  switch (action.type) {
-    case ActionType.MOUSE_MOVE:
-      return `Moving mouse to position (${action.x}, ${action.y})`;
+  switch (action.action) {
+    case "mouse_move":
+      return action.coordinate
+        ? `Moving mouse to position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Moving mouse`;
 
-    case ActionType.MOUSE_CLICK:
-      return `Clicking ${action.button} button at position (${action.x}, ${
-        action.y
-      })${action.doubleClick ? " (double-click)" : ""}`;
+    case "left_click":
+      return action.coordinate
+        ? `Clicking left button at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Clicking left button`;
 
-    case ActionType.MOUSE_DRAG:
-      return `Dragging with ${action.button} button from (${action.startX}, ${action.startY}) to (${action.endX}, ${action.endY})`;
+    case "right_click":
+      return action.coordinate
+        ? `Clicking right button at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Clicking right button`;
 
-    case ActionType.KEYBOARD_TYPE:
+    case "middle_click":
+      return action.coordinate
+        ? `Clicking middle button at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Clicking middle button`;
+
+    case "double_click":
+      return action.coordinate
+        ? `Double-clicking at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Double-clicking`;
+
+    case "triple_click":
+      return action.coordinate
+        ? `Triple-clicking at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Triple-clicking`;
+
+    case "left_click_drag":
+      return action.coordinate
+        ? `Dragging with left button`
+        : `Dragging with left button`;
+
+    case "left_mouse_down":
+      return action.coordinate
+        ? `Pressing left button at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Pressing left button`;
+
+    case "left_mouse_up":
+      return action.coordinate
+        ? `Releasing left button at position (${action.coordinate[0]}, ${action.coordinate[1]})`
+        : `Releasing left button`;
+
+    case "type":
       return `Typing text: "${action.text}"`;
 
-    case ActionType.KEYBOARD_PRESS:
+    case "key":
       return `Pressing key: ${action.key}`;
 
+    case "hold_key":
+      return `Holding key: ${action.key}${
+        action.duration ? ` for ${action.duration}ms` : ""
+      }`;
+
+    case "scroll":
+      return `Scrolling ${action.scroll_direction || "down"}${
+        action.scroll_amount ? ` by ${action.scroll_amount}` : ""
+      }`;
+
+    case "wait":
+      return `Waiting${action.duration ? ` for ${action.duration}ms` : ""}`;
+
+    case "screenshot":
+      return "Taking screenshot";
+
+    case "cursor_position":
+      return "Getting cursor position";
+
     default:
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return `Unknown action: ${(action as any).type}`;
+      return `Unknown action: ${action.action}`;
   }
 }
 
 // Execute a single action
 async function executeAction(action: AgentAction): Promise<void> {
   // Send progress update to renderer
-  const progressMessage: ProgressMessage = {
+  const agentMessage: AgentMessage = {
     type: "action-progress",
     content: formatActionDetails(action),
     timestamp: Date.now(),
     actionDetails: action,
   };
-  sendProgressUpdate(progressMessage);
+  sendProgressUpdate(agentMessage);
 
-  let button: Button;
-  let dragButton: Button;
   const keyMap: { [key: string]: Key } = {
     Enter: Key.Enter,
     Tab: Key.Tab,
@@ -167,63 +123,147 @@ async function executeAction(action: AgentAction): Promise<void> {
     Delete: Key.Delete,
   };
 
-  switch (action.type) {
-    case ActionType.MOUSE_MOVE:
-      await mouse.move(straightTo(new Point(action.x, action.y)));
-      break;
-
-    case ActionType.MOUSE_CLICK:
-      // First move to the position
-      await mouse.move(straightTo(new Point(action.x, action.y)));
-      // Then click
-      button =
-        action.button === "left"
-          ? Button.LEFT
-          : action.button === "right"
-          ? Button.RIGHT
-          : Button.MIDDLE;
-
-      if (action.doubleClick) {
-        await mouse.doubleClick(button);
-      } else {
-        await mouse.click(button);
+  switch (action.action) {
+    case "mouse_move":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
       }
       break;
 
-    case ActionType.MOUSE_DRAG:
-      // Move to start position
-      await mouse.move(straightTo(new Point(action.startX, action.startY)));
-      // Press down
-      dragButton =
-        action.button === "left"
-          ? Button.LEFT
-          : action.button === "right"
-          ? Button.RIGHT
-          : Button.MIDDLE;
-      await mouse.pressButton(dragButton);
-      // Move to end position
-      await mouse.move(straightTo(new Point(action.endX, action.endY)));
-      // Release button
-      await mouse.releaseButton(dragButton);
+    case "left_click":
+      if (action.coordinate) {
+        // First move to the position
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        // Then click
+        await mouse.click(Button.LEFT);
+      }
       break;
 
-    case ActionType.KEYBOARD_TYPE:
+    case "right_click":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        await mouse.click(Button.RIGHT);
+      }
+      break;
+
+    case "middle_click":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        await mouse.click(Button.MIDDLE);
+      }
+      break;
+
+    case "double_click":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        await mouse.doubleClick(Button.LEFT);
+      }
+      break;
+
+    case "triple_click":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        // Triple clicking is typically simulated as three clicks
+        await mouse.click(Button.LEFT);
+        await mouse.click(Button.LEFT);
+        await mouse.click(Button.LEFT);
+      }
+      break;
+
+    case "left_click_drag":
+      if (action.coordinate && action.coordinate.length >= 4) {
+        // For drag, we expect coordinate to have start and end positions [startX, startY, endX, endY]
+        const [startX, startY, endX, endY] = action.coordinate;
+        // Move to start position
+        await mouse.move(straightTo(new Point(startX, startY)));
+        // Press down
+        await mouse.pressButton(Button.LEFT);
+        // Move to end position
+        await mouse.move(straightTo(new Point(endX, endY)));
+        // Release button
+        await mouse.releaseButton(Button.LEFT);
+      }
+      break;
+
+    case "left_mouse_down":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        await mouse.pressButton(Button.LEFT);
+      }
+      break;
+
+    case "left_mouse_up":
+      if (action.coordinate) {
+        await mouse.move(
+          straightTo(new Point(action.coordinate[0], action.coordinate[1]))
+        );
+        await mouse.releaseButton(Button.LEFT);
+      }
+      break;
+
+    case "type":
       await keyboard.type(action.text);
       break;
 
-    case ActionType.KEYBOARD_PRESS:
+    case "key":
       // Map string key name to Key enum if needed
-      if (action.key in keyMap) {
+      if (action.key && action.key in keyMap) {
         await keyboard.pressKey(keyMap[action.key]);
         await keyboard.releaseKey(keyMap[action.key]);
-      } else {
+      } else if (action.key) {
         console.warn(`Unsupported key: ${action.key}`);
       }
       break;
 
+    case "hold_key":
+      if (action.key && action.key in keyMap) {
+        await keyboard.pressKey(keyMap[action.key]);
+        if (action.duration) {
+          await new Promise((resolve) => setTimeout(resolve, action.duration));
+        }
+        await keyboard.releaseKey(keyMap[action.key]);
+      } else if (action.key) {
+        console.warn(`Unsupported key: ${action.key}`);
+      }
+      break;
+
+    case "scroll":
+      // Implementation for scrolling would go here
+      console.warn("Scroll action not implemented");
+      break;
+
+    case "wait":
+      if (action.duration) {
+        await new Promise((resolve) => setTimeout(resolve, action.duration));
+      }
+      break;
+
+    case "screenshot":
+      // Implementation for screenshot would go here
+      console.warn("Screenshot action not implemented");
+      break;
+
+    case "cursor_position":
+      // Implementation for getting cursor position would go here
+      console.warn("Cursor position action not implemented");
+      break;
+
     default:
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      console.warn(`Unknown action type: ${(action as any).type}`);
+      console.warn(`Unknown action type: ${action.action}`);
   }
 }
 
@@ -399,7 +439,7 @@ export function setupQueryHandler(): void {
     const window = BrowserWindow.fromWebContents(event.sender);
 
     // Send user input message to renderer
-    const userInputMessage: ProgressMessage = {
+    const userInputMessage: AgentMessage = {
       type: "user-input",
       content: query,
       timestamp: Date.now(),

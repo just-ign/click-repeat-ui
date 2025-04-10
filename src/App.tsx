@@ -14,8 +14,8 @@ const MessageIcon = ({
   type,
   actionType,
 }: {
-  type: string;
-  actionType?: string;
+  type: AgentMessageType;
+  actionType?: AgentActionType;
 }) => {
   if (type === "user-input") {
     return <Search className="h-5 w-5 text-primary" />;
@@ -24,11 +24,11 @@ const MessageIcon = ({
   // For action progress messages
   switch (actionType) {
     case "mouse_move":
-    case "mouse_click":
-    case "mouse_drag":
+    case "left_click":
+    case "left_click_drag":
       return <MousePointer className="h-5 w-5 text-blue-400" />;
-    case "keyboard_type":
-    case "keyboard_press":
+    case "type":
+    case "hold_key":
       return <Keyboard className="h-5 w-5 text-green-400" />;
     default:
       return <GithubIcon className="h-5 w-5 text-gray-400" />;
@@ -37,7 +37,7 @@ const MessageIcon = ({
 
 function App() {
   const [inputValue, setInputValue] = useState("");
-  const [messages, setMessages] = useState<ProgressMessage[]>([]);
+  const [messages, setMessages] = useState<AgentMessage[]>([]);
   const windowWidth = useRef<number>(700); // Default window width
   const messageRef = useRef<HTMLDivElement>(null);
   const removeListenerRef = useRef<(() => void) | null>(null);
@@ -46,7 +46,7 @@ function App() {
   useEffect(() => {
     // Add listener for progress updates and store the cleanup function
     const removeListener = window.electronAPI.onAgentProgress(
-      (message: ProgressMessage) => {
+      (message: AgentMessage) => {
         setMessages((prevMessages) => [message, ...prevMessages]); // Add new messages to top
       }
     );
@@ -165,7 +165,7 @@ function App() {
                   <Avatar className="h-8 w-8 mr-3 bg-background border flex items-center justify-center">
                     <MessageIcon
                       type={msg.type}
-                      actionType={msg.actionDetails?.type}
+                      actionType={msg.actionDetails?.action}
                     />
                   </Avatar>
                   <div className="flex-1 min-w-0">
@@ -173,7 +173,7 @@ function App() {
                     <div className="text-xs text-muted-foreground truncate mt-1">
                       {msg.type === "user-input"
                         ? "User query"
-                        : msg.actionDetails?.type || "Action"}{" "}
+                        : msg.actionDetails?.action || "Action"}{" "}
                       — {new Date(msg.timestamp).toLocaleTimeString()}
                     </div>
                   </div>

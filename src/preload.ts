@@ -2,13 +2,12 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer, IpcRendererEvent } from "electron";
-import { ProgressMessage } from "./general-agent";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   handleQuery: (query: string) => ipcRenderer.invoke("handleQuery", query),
-  onAgentProgress: (callback: (message: ProgressMessage) => void) => {
+  onAgentProgress: (callback: (message: AgentMessage) => void) => {
     // Define the event handler function
-    const eventHandler = (_event: IpcRendererEvent, message: ProgressMessage) =>
+    const eventHandler = (_event: IpcRendererEvent, message: AgentMessage) =>
       callback(message);
 
     // Add the listener

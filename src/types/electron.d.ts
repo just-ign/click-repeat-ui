@@ -18,7 +18,7 @@ type AgentActionType =
 
 type ScrollDirection = "up" | "down" | "left" | "right";
 
-type AgentMessageType = "user-input" | "action-progress";
+type AgentMessageType = "user-input" | "action-progress" | "assistant-progress";
 
 interface AgentAction {
   action: AgentActionType;
@@ -42,9 +42,7 @@ interface Window {
     handleQuery: (
       query: string
     ) => Promise<{ success: boolean; actionsPerformed?: number }>;
-    onAgentProgress: (
-      callback: (message: AgentMessage) => void
-    ) => () => void;
+    onAgentProgress: (callback: (message: AgentMessage) => void) => () => void;
     expandWindow: () => Promise<{ success: boolean; error?: string }>;
     minimizeWindow: () => Promise<{ success: boolean; error?: string }>;
   };

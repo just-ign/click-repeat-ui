@@ -13,11 +13,6 @@ const EXPANDED_MAIN_WINDOW_WIDTH = 700;
 const MAIN_WINDOW_HEIGHT = 60;
 const MAIN_WINDOW_WIDTH = 700;
 
-// Function to simulate an SSE response with a series of actions
-function simulateSSEResponse(): AgentAction[] {
-  return [];
-}
-
 // Helper function to send progress updates to the renderer
 function sendProgressUpdate(message: AgentMessage): void {
   const windows = BrowserWindow.getAllWindows();
@@ -267,13 +262,29 @@ async function executeAction(action: AgentAction): Promise<void> {
   }
 }
 
-// Execute a series of actions
-async function executeActions(actions: AgentAction[]): Promise<void> {
-  for (const action of actions) {
-    await executeAction(action);
-    // Add a small delay between actions
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
+// WebSocket client reference
+let wsClient: WebSocket | null = null;
+
+// Initialize WebSocket connection
+function initializeWebSocket(): WebSocket {
+  const ws = new WebSocket("ws://localhost:8000/ws");
+
+  ws.addEventListener("open", () => {
+    console.log("WebSocket connection established");
+  });
+
+  ws.addEventListener("error", (error) => {
+    console.error("WebSocket error:", error);
+  });
+
+  ws.addEventListener("close", () => {
+    console.log("WebSocket connection closed, attempting to reconnect...");
+    setTimeout(() => {
+      wsClient = initializeWebSocket();
+    }, 3000);
+  });
+
+  return ws;
 }
 
 // Resize the window with animation effect
@@ -433,6 +444,9 @@ function cubicBezier(
 }
 
 export function setupQueryHandler(): void {
+  // Initialize WebSocket connection
+  wsClient = initializeWebSocket();
+
   // Set up the main query handler
   ipcMain.handle("handleQuery", async (event, query) => {
     // Get the window from the event
@@ -446,25 +460,53 @@ export function setupQueryHandler(): void {
     };
     sendProgressUpdate(userInputMessage);
 
-    // Get actions from simulated SSE
-    const actions = simulateSSEResponse();
-
     // Move the window to the center bottom when input is received
     if (window) {
       moveWindowToCenterBottom(window, EXPANDED_MAIN_WINDOW_HEIGHT);
     }
 
-    // Execute all actions
-    await executeActions(actions);
-
-    // After actions are complete, move window back to the top center position
-    // but keep it expanded if it has messages
-    if (window) {
-      // Only move the window back to top center, don't resize
-      moveWindowToTopCenter(window);
+    // Check if WebSocket is connected
+    if (!wsClient || wsClient.readyState !== WebSocket.OPEN) {
+      // Try to reconnect
+      wsClient = initializeWebSocket();
+      // Send error message to renderer
+      const errorMessage: AgentMessage = {
+        type: "assistant-progress",
+        content: "Error: Cannot connect to the server. Please try again later.",
+        timestamp: Date.now(),
+      };
+      sendProgressUpdate(errorMessage);
+      return { success: false, error: "WebSocket not connected" };
     }
 
-    return { success: true, actionsPerformed: actions.length };
+    // Send query to WebSocket server
+    return new Promise((resolve) => {
+      // Setup message handler for this specific query
+      wsClient.addEventListener("message", (data) => {
+        // Extract the actual data from the MessageEvent
+        const responseText =
+          typeof data.data === "string" ? data.data : JSON.stringify(data.data);
+
+        // Send assistant progress message to renderer
+        const assistantMessage: AgentMessage = {
+          type: "assistant-progress",
+          content: responseText,
+          timestamp: Date.now(),
+        };
+        sendProgressUpdate(assistantMessage);
+
+        // After response is received, move window back to the top center position
+        if (window) {
+          moveWindowToTopCenter(window);
+        }
+
+        // Resolve the promise
+        resolve({ success: true, response: responseText });
+      });
+
+      // Send the query to the server
+      wsClient.send(JSON.stringify({ query }));
+    });
   });
 
   // Set up handler to reset window position

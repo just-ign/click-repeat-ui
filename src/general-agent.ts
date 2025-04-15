@@ -164,7 +164,12 @@ async function executeAction(action: AgentAction) {
     case "left_click_drag":
       await mouse.pressButton(Button.LEFT);
       await mouse.move(
-        straightTo(new Point(action.tool_input.coordinate[0], action.tool_input.coordinate[1]))
+        straightTo(
+          new Point(
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          )
+        )
       );
       break;
 
@@ -198,7 +203,9 @@ async function executeAction(action: AgentAction) {
       break;
 
     case "wait":
-      await new Promise((resolve) => setTimeout(resolve, action.tool_input.duration));
+      await new Promise((resolve) =>
+        setTimeout(resolve, action.tool_input.duration)
+      );
       break;
 
     case "screenshot":
@@ -245,8 +252,7 @@ function initializeWebSocket(): WebSocket {
         timestamp: Date.now(),
       };
       sendProgressUpdate(assistantMessage);
-    } else {
-      console.log("Tool called", cleanedResponse);
+    } else if (cleanedResponse.action === "tool_call") {
       executeAction(cleanedResponse);
     }
   });

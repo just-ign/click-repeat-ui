@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar } from "@/components/ui/avatar";
 import { useEffect, useState, useRef } from "react";
-import { X, Search, GithubIcon, MousePointer, Keyboard } from "lucide-react";
+import { X, Search, MousePointer, Keyboard, Clock, Camera } from "lucide-react";
 import {
   EXPANDED_MAIN_WINDOW_HEIGHT,
   MAIN_WINDOW_HEIGHT,
@@ -15,7 +15,7 @@ const MessageIcon = ({
   actionType,
 }: {
   type: AgentMessageType;
-  actionType?: AgentActionType;
+  actionType?: AgentToolAction;
 }) => {
   if (type === "user-input") {
     return <Search className="h-5 w-5 text-primary" />;
@@ -23,15 +23,29 @@ const MessageIcon = ({
 
   // For action progress messages
   switch (actionType) {
+    case "cursor_position":
     case "mouse_move":
+    case "left_mouse_down":
+    case "left_mouse_up":
     case "left_click":
     case "left_click_drag":
+    case "right_click":
+    case "middle_click":
+    case "double_click":
+    case "triple_click":
+    case "scroll":
       return <MousePointer className="h-5 w-5 text-blue-400" />;
-    case "type":
+    case "key":
     case "hold_key":
+    case "type":
       return <Keyboard className="h-5 w-5 text-green-400" />;
+    case "wait":
+      return <Clock className="h-5 w-5 text-yellow-400" />;
+    case "screenshot":
+      return <Camera className="h-5 w-5 text-red-400" />;
+
     default:
-      return <GithubIcon className="h-5 w-5 text-gray-400" />;
+      return <MousePointer className="h-5 w-5 text-blue-400" />;
   }
 };
 
@@ -165,7 +179,7 @@ function App() {
                   <Avatar className="h-8 w-8 mr-3 bg-background border flex items-center justify-center">
                     <MessageIcon
                       type={msg.type}
-                      actionType={msg.actionDetails?.action}
+                      actionType={msg.actionDetails?.tool_input.action}
                     />
                   </Avatar>
                   <div className="flex-1 min-w-0">

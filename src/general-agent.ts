@@ -1,4 +1,4 @@
-import { ipcMain, BrowserWindow, screen } from "electron";
+import { ipcMain, BrowserWindow, screen, desktopCapturer } from "electron";
 import {
   mouse,
   Point,
@@ -7,17 +7,61 @@ import {
   keyboard,
   Key,
 } from "@nut-tree-fork/nut-js";
+import * as fs from "fs";
+import * as path from "path";
 
 const EXPANDED_MAIN_WINDOW_HEIGHT = 300;
 const EXPANDED_MAIN_WINDOW_WIDTH = 700;
 const MAIN_WINDOW_HEIGHT = 60;
 const MAIN_WINDOW_WIDTH = 700;
 
+// Target dimensions for scaled screenshots (matching Python's FWXGA target)
+const TARGET_DIMENSIONS = {
+  width: 1366,
+  height: 768,
+};
+
+// Flag to enable/disable coordinate scaling
+const SCALING_ENABLED = true;
+
 // Helper function to send progress updates to the renderer
 function sendProgressUpdate(message: AgentMessage): void {
   const windows = BrowserWindow.getAllWindows();
   if (windows.length > 0) {
     windows[0].webContents.send("agent-progress", message);
+  }
+}
+
+// Helper function to scale coordinates between real screen and target dimensions
+function scaleCoordinates(
+  fromApi: boolean,
+  x: number,
+  y: number
+): [number, number] {
+  if (!SCALING_ENABLED) {
+    return [x, y];
+  }
+
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width, height } = primaryDisplay.size
+
+  // Calculate scaling factors exactly like the Python implementation
+  const xScalingFactor = TARGET_DIMENSIONS.width / width;
+  const yScalingFactor = TARGET_DIMENSIONS.height / height;
+
+  if (fromApi) {
+    // Scale from API dimensions to actual screen dimensions (API → Screen)
+    if (x > TARGET_DIMENSIONS.width || y > TARGET_DIMENSIONS.height) {
+      console.error(`Coordinates ${x}, ${y} are out of bounds`);
+      // Clamp values to prevent errors
+      x = Math.min(x, TARGET_DIMENSIONS.width);
+      y = Math.min(y, TARGET_DIMENSIONS.height);
+    }
+    // Exactly like Python's "scale up to real screen coordinates"
+    return [Math.round(x / xScalingFactor), Math.round(y / yScalingFactor)];
+  } else {
+    // Scale from actual screen dimensions to API dimensions (Screen → API)
+    return [Math.round(x * xScalingFactor), Math.round(y * yScalingFactor)];
   }
 }
 
@@ -103,6 +147,79 @@ function formatActionDetails(action: AgentAction): string {
   }
 }
 
+// Function to take a screenshot of the primary display and encode it as base64
+async function takeScreenshot(): Promise<string | null> {
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+    
+    // Create screenshots directory if it doesn't exist
+    const screenshotsDir = path.join(process.cwd(), "screenshots");
+    if (!fs.existsSync(screenshotsDir)) {
+      fs.mkdirSync(screenshotsDir, { recursive: true });
+    }
+
+    // Generate a filename based on current date/time
+    const timestamp = new Date().toISOString().replace(/:/g, "-");
+    const filename = path.join(screenshotsDir, `screenshot-${timestamp}.png`);
+
+    // First, capture the full-size screenshot
+    const sources = await desktopCapturer.getSources({
+      types: ["screen"],
+      thumbnailSize: { width, height },
+    });
+
+    // Find the primary display source
+    const primarySource = sources.find(
+      (source) =>
+        source.display_id === primaryDisplay.id.toString() ||
+        sources.length === 1
+    );
+
+    if (primarySource && primarySource.thumbnail) {
+      // Get the NativeImage from the thumbnail
+      const originalImage = primarySource.thumbnail;
+      
+      // Forcibly resize the image to TARGET_DIMENSIONS without preserving aspect ratio
+      const resizedImage = originalImage.resize({
+        width: TARGET_DIMENSIONS.width,
+        height: TARGET_DIMENSIONS.height,
+        quality: 'best'
+      });
+      
+      // Save the resized image
+      const pngBuffer = resizedImage.toPNG();
+      fs.writeFileSync(filename, pngBuffer);
+      
+      // Convert to base64 for sending to server
+      const base64Image = pngBuffer.toString("base64");
+
+      // If the WebSocket is available, send the screenshot to the server
+      if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+        wsClient.send(
+          JSON.stringify({
+            action: "tool_response",
+            output: `Screenshot saved to ${filename}`,
+            base64_image: base64Image,
+          })
+        );
+      }
+      return filename;
+    } else {
+      throw new Error("Could not find primary display source");
+    }
+  } catch (error) {
+    console.error("Screenshot error:", error);
+    const errorMessage: AgentMessage = {
+      type: "action-error",
+      content: `Screenshot failed: ${error.message}`,
+      timestamp: Date.now(),
+    };
+    sendProgressUpdate(errorMessage);
+    return null;
+  }
+}
+
 // Execute a single action
 async function executeAction(action: AgentAction) {
   // Send progress update to renderer
@@ -114,103 +231,200 @@ async function executeAction(action: AgentAction) {
   };
   sendProgressUpdate(agentMessage);
 
-  const keyMap: Record<string, Key> = {
-    Enter: Key.Enter,
-    Tab: Key.Tab,
-    Escape: Key.Escape,
-    Backspace: Key.Backspace,
-    Delete: Key.Delete,
-  };
+  try {
+    let result;
+    let position;
+    let apiX, apiY;
+    let screenX, screenY;
+    let filename;
 
-  switch (action.tool_input.action) {
-    case "key":
-      await keyboard.pressKey(keyMap[action.tool_input.text]);
-      break;
+    switch (action.tool_input.action) {
+      case "key":
+        await keyboard.pressKey(action.tool_input.text as unknown as Key);
+        break;
 
-    case "hold_key":
-      await keyboard.pressKey(keyMap[action.tool_input.text]);
-      break;
+      case "hold_key":
+        await keyboard.pressKey(action.tool_input.text as unknown as Key);
+        break;
 
-    case "type":
-      await keyboard.type(action.tool_input.text);
-      break;
+      case "type":
+        await keyboard.type(action.tool_input.text);
+        break;
 
-    case "cursor_position":
-      return await mouse.getPosition();
+      case "cursor_position":
+        position = await mouse.getPosition();
+        // Scale the coordinates to API dimensions
+        [apiX, apiY] = scaleCoordinates(false, position.x, position.y);
+        result = {
+          output: `X=${apiX},Y=${apiY}`,
+          tool_id: action.tool_id,
+        };
+        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+          wsClient.send(JSON.stringify(result));
+        }
+        return position;
 
-    case "mouse_move":
-      await mouse.move(
-        straightTo(
-          new Point(
+      case "mouse_move":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
             action.tool_input.coordinate[0],
             action.tool_input.coordinate[1]
-          )
-        )
-      );
-      break;
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        break;
 
-    case "left_mouse_down":
-      await mouse.pressButton(Button.LEFT);
-      break;
+      case "left_mouse_down":
+        await mouse.pressButton(Button.LEFT);
+        break;
 
-    case "left_mouse_up":
-      await mouse.releaseButton(Button.LEFT);
-      break;
+      case "left_mouse_up":
+        await mouse.releaseButton(Button.LEFT);
+        break;
 
-    case "left_click":
-      await mouse.click(Button.LEFT);
-      break;
-
-    case "left_click_drag":
-      await mouse.pressButton(Button.LEFT);
-      await mouse.move(
-        straightTo(
-          new Point(
+      case "left_click":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
             action.tool_input.coordinate[0],
             action.tool_input.coordinate[1]
-          )
-        )
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        await mouse.click(Button.LEFT);
+        break;
+
+      case "left_click_drag":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.pressButton(Button.LEFT);
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        break;
+
+      case "right_click":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        await mouse.click(Button.RIGHT);
+        break;
+
+      case "middle_click":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        await mouse.click(Button.MIDDLE);
+        break;
+
+      case "double_click":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        await mouse.doubleClick(Button.LEFT);
+        break;
+
+      case "triple_click":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+        await mouse.doubleClick(Button.LEFT);
+        await mouse.click(Button.LEFT);
+        break;
+
+      case "scroll":
+        if (action.tool_input.coordinate) {
+          // Scale from API dimensions to screen dimensions
+          [screenX, screenY] = scaleCoordinates(
+            true,
+            action.tool_input.coordinate[0],
+            action.tool_input.coordinate[1]
+          );
+          await mouse.move(straightTo(new Point(screenX, screenY)));
+        }
+
+        if (action.tool_input.scroll_direction === "up") {
+          await mouse.scrollUp(action.tool_input.scroll_amount);
+        } else if (action.tool_input.scroll_direction === "down") {
+          await mouse.scrollDown(action.tool_input.scroll_amount);
+        } else if (action.tool_input.scroll_direction === "left") {
+          await mouse.scrollLeft(action.tool_input.scroll_amount);
+        } else if (action.tool_input.scroll_direction === "right") {
+          await mouse.scrollRight(action.tool_input.scroll_amount);
+        }
+        break;
+
+      case "wait":
+        await new Promise((resolve) =>
+          setTimeout(resolve, action.tool_input.duration)
+        );
+        break;
+
+      case "screenshot":
+        filename = await takeScreenshot();
+        result = {
+          output: filename
+            ? `Screenshot saved to ${filename}`
+            : "Screenshot failed",
+          tool_id: action.tool_id,
+        };
+        if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+          wsClient.send(JSON.stringify(result));
+        }
+        return filename;
+    }
+
+    // Send acknowledgment of completed action
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+      wsClient.send(
+        JSON.stringify({
+          tool_id: action.tool_id,
+          output: `Completed action: ${action.tool_input.action}`,
+        })
       );
-      break;
-
-    case "right_click":
-      await mouse.click(Button.RIGHT);
-      break;
-
-    case "middle_click":
-      await mouse.click(Button.MIDDLE);
-      break;
-
-    case "double_click":
-      await mouse.doubleClick(Button.LEFT);
-      break;
-
-    case "triple_click":
-      await mouse.doubleClick(Button.LEFT);
-      await mouse.click(Button.LEFT);
-      break;
-
-    case "scroll":
-      if (action.tool_input.scroll_direction === "up") {
-        await mouse.scrollUp(action.tool_input.scroll_amount);
-      } else if (action.tool_input.scroll_direction === "down") {
-        await mouse.scrollDown(action.tool_input.scroll_amount);
-      } else if (action.tool_input.scroll_direction === "left") {
-        await mouse.scrollLeft(action.tool_input.scroll_amount);
-      } else if (action.tool_input.scroll_direction === "right") {
-        await mouse.scrollRight(action.tool_input.scroll_amount);
-      }
-      break;
-
-    case "wait":
-      await new Promise((resolve) =>
-        setTimeout(resolve, action.tool_input.duration)
+    }
+  } catch (error) {
+    console.error(`Error executing ${action.tool_input.action}:`, error);
+    // Send error response
+    if (wsClient && wsClient.readyState === WebSocket.OPEN) {
+      wsClient.send(
+        JSON.stringify({
+          tool_id: action.tool_id,
+          error: `Error executing ${action.tool_input.action}: ${error.message}`,
+        })
       );
-      break;
-
-    case "screenshot":
-      console.warn("Scroll action not implemented");
-      break;
+    }
   }
 }
 

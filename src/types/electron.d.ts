@@ -1,4 +1,4 @@
-type AgentMessageType = "user-input" | "action-progress" | "assistant-progress";
+type AgentMessageType = "user-input" | "action-progress" | "assistant-progress" | "action-error";
 
 type AgentToolAction =
   // Press a key or key-combination on the keyboard.

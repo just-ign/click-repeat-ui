@@ -1,4 +1,9 @@
-type AgentMessageType = "user-input" | "action-progress" | "assistant-progress" | "action-error";
+type AgentMessageType =
+  | "user-input"
+  | "action-progress"
+  | "assistant-progress"
+  | "action-error"
+  | "request-complete";
 
 type AgentToolAction =
   // Press a key or key-combination on the keyboard.
@@ -69,13 +74,24 @@ interface AgentMessage {
   actionDetails?: AgentAction;
 }
 
+interface Workflow {
+  Title: string;
+  Steps: string[];
+  "Important Input Text Fields": string[];
+}
+
 interface Window {
   electronAPI: {
     handleQuery: (
       query: string
     ) => Promise<{ success: boolean; actionsPerformed?: number }>;
     onAgentProgress: (callback: (message: AgentMessage) => void) => () => void;
-    expandWindow: () => Promise<{ success: boolean; error?: string }>;
-    minimizeWindow: () => Promise<{ success: boolean; error?: string }>;
+    toggleWindowMode: (data: {
+      mode: "initial" | "recording" | "minimized";
+      height: number;
+      width?: number;
+    }) => Promise<{ success: boolean; error?: string }>;
+    startRecording: () => Promise<{ success: boolean; error?: string }>;
+    stopRecording: () => Promise<{ success: boolean; error?: string }>;
   };
 }

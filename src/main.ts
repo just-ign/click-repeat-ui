@@ -3,8 +3,8 @@ import path from "node:path";
 import started from "electron-squirrel-startup";
 import { setupQueryHandler } from "./general-agent";
 
-const MAIN_WINDOW_HEIGHT = 60;
-const MAIN_WINDOW_WIDTH = 700;
+const MAIN_WINDOW_HEIGHT = 40;
+const MAIN_WINDOW_WIDTH = 200;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -32,11 +32,12 @@ const createWindow = () => {
     x: windowX,
     y: windowY,
     frame: false,
-    resizable: false,
-    movable: true, // Make sure window is movable
+    // resizable: false,
+    // movable: true, // Make sure window is movable
     fullscreenable: false,
     maximizable: false,
     acceptFirstMouse: true, // Activate the window when clicking on any UI element
+    transparent: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

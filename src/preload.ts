@@ -18,6 +18,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("agent-progress", eventHandler);
     };
   },
-  expandWindow: () => ipcRenderer.invoke("expandWindow"),
-  minimizeWindow: () => ipcRenderer.invoke("minimizeWindow"),
+  toggleWindowMode: (data: {
+    mode: "initial" | "expanded" | "minimized";
+    height: number;
+    width?: number;
+  }) => ipcRenderer.invoke("toggleWindowMode", data),
+  startRecording: () => ipcRenderer.invoke("startRecording"),
+  stopRecording: () => ipcRenderer.invoke("stopRecording"),
 });

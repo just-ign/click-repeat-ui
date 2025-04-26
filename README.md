@@ -1,15 +1,22 @@
-# Electron + Vite + React + TypeScript + Shadcn UI
+# Click Repeat
 
-A modern desktop application template built with Electron, Vite, React, TypeScript, and Shadcn UI components.
+A desktop automation tool built with Electron, React, TypeScript, and Shadcn UI that allows you to record and replay UI workflows.
 
 ## Features
 
-- 🚀 **Electron Forge** - Simplified Electron application deployment
-- ⚡ **Vite** - Fast development and building experience
-- ⚛️ **React** - Component-based UI library
-- 🔷 **TypeScript** - Type safety and improved developer experience
-- 🎨 **Shadcn UI** - Beautiful, accessible UI components
+- 🎥 **Record UI Interactions** - Capture mouse movements, clicks, and keyboard actions
+- 🤖 **Automated Replay** - Run saved workflows with a single click
+- 📱 **Minimal Interface** - Unobtrusive floating window that stays out of your way
+- 🎨 **Modern UI** - Beautiful, accessible interface built with Shadcn UI components
 - 🌙 **Dark mode support** - Automatically adapts to system preferences
+
+## How It Works
+
+1. **Record** - Click the "Record" button to start capturing your screen interactions
+2. **Process** - Recordings are automatically processed into reusable workflows
+3. **Replay** - Click the "Play" button to select and execute any saved workflow
+
+The app intelligently scales coordinates between different screen resolutions, making workflows portable across different devices.
 
 ## Prerequisites
 
@@ -22,8 +29,8 @@ A modern desktop application template built with Electron, Vite, React, TypeScri
 
 ```bash
 # Clone the repository (or download the zip)
-git clone https://github.com/yourusername/your-electron-app.git
-cd your-electron-app
+git clone https://github.com/just-ign/click-repeat-ui.git
+cd click-repeat
 
 # Install dependencies
 npm install
@@ -56,29 +63,16 @@ This will generate platform-specific distributables in the `out` directory.
 ## Project Structure
 
 ```
-├── src/                # Application source code
-│   ├── main.ts         # Electron main process
-│   ├── preload.ts      # Preload script
-│   ├── App.tsx         # Main React component
-│   └── ...
-├── components/         # UI components
-│   └── ui/             # Shadcn UI components
-├── lib/                # Utility functions and helpers
-├── public/             # Static assets
+├── src/
+│   ├── main.ts                # Electron main process
+│   ├── preload.ts             # Preload script
+│   ├── App.tsx                # Main React component
+│   ├── general-agent.ts       # Core automation functionality
+│   └── api.ts                 # API communication
+├── components/                # UI components
+│   └── ui/                    # Shadcn UI components
+├── public/                    # Static assets
 └── ...
-```
-
-## Customization
-
-### Adding Shadcn UI Components
-
-```bash
-npx shadcn@latest add [component-name]
-```
-
-Example:
-```bash
-npx shadcn@latest add dropdown-menu
 ```
 
 ## License

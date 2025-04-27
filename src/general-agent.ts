@@ -49,7 +49,7 @@ const TARGET_DIMENSIONS = {
 const SCALING_ENABLED = true;
 
 // Flag to use dummy events instead of real websocket
-const USE_DUMMY_EVENTS = true;
+const USE_DUMMY_EVENTS = false;
 let currentDummyEventIndex = 0;
 
 // Helper function to send progress updates to the renderer
@@ -659,15 +659,5 @@ export function setupQueryHandler(): void {
       console.error("Error stopping recording:", error);
       return { success: false, error: error.message };
     }
-  });
-
-  // Set up handler to reset window position
-  ipcMain.handle("toggleWindowMode", (event, data) => {
-    const window = BrowserWindow.fromWebContents(event.sender);
-    if (!window) return { success: false, error: "Window not found" };
-
-    toggleWindowMode(window, data.mode, data.height, data.width);
-
-    return { success: true };
   });
 }

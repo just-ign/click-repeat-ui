@@ -1,10 +1,14 @@
-import { app, BrowserWindow, screen } from "electron";
+import { app, BrowserWindow, screen, ipcMain } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { setupQueryHandler } from "./general-agent";
 
-const MAIN_WINDOW_HEIGHT = 40;
-const MAIN_WINDOW_WIDTH = 200;
+const INITIAL_WINDOW_HEIGHT = 40; // Base height if no history
+const MAX_WINDOW_HEIGHT = 350; // Increased Max height to match App.tsx
+const INITIAL_WINDOW_WIDTH = 400;
+const RECORDING_WINDOW_WIDTH = 130; // Match App.tsx
+// const RECORDING_WINDOW_HEIGHT = 36; // Remove
+// const MAX_WINDOW_WIDTH = 600; // Optional
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -15,6 +19,8 @@ if (started) {
 const MAIN_WINDOW_VITE_DEV_SERVER_URL = "http://localhost:5173";
 const MAIN_WINDOW_VITE_NAME = "renderer";
 
+let mainWindow: BrowserWindow | null = null;
+
 const createWindow = () => {
   // Get the primary display dimensions
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -22,21 +28,25 @@ const createWindow = () => {
     primaryDisplay.workAreaSize;
 
   // Calculate window position to place it at the top 30% area
-  const windowX = Math.floor((displayWidth - MAIN_WINDOW_WIDTH) / 2); // Center horizontally
+  const windowX = Math.floor((displayWidth - INITIAL_WINDOW_WIDTH) / 2); // Center horizontally
   const windowY = Math.floor(displayHeight * 0.3); // Place at 30% from the top
 
   // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: MAIN_WINDOW_WIDTH,
-    height: MAIN_WINDOW_HEIGHT,
+  mainWindow = new BrowserWindow({
+    width: INITIAL_WINDOW_WIDTH,
+    height: INITIAL_WINDOW_HEIGHT,
     x: windowX,
     y: windowY,
     frame: false,
-    // resizable: false,
-    // movable: true, // Make sure window is movable
+    resizable: true,
+    minWidth: INITIAL_WINDOW_WIDTH,
+    minHeight: INITIAL_WINDOW_HEIGHT,
+    maxWidth: displayWidth, 
+    maxHeight: MAX_WINDOW_HEIGHT, // Use updated max height
+    movable: true,
     fullscreenable: false,
     maximizable: false,
-    acceptFirstMouse: true, // Activate the window when clicking on any UI element
+    acceptFirstMouse: true,
     transparent: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -45,8 +55,14 @@ const createWindow = () => {
     },
   });
 
-  // Allow window to be moved between different displays
   mainWindow.setMovable(true);
+  
+  // Remove the previous will-resize handler as resizing is now controlled by content
+  // mainWindow.on('will-resize', ...);
+
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
 
   // and load the index.html of the app.
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -57,6 +73,63 @@ const createWindow = () => {
     );
   }
 };
+
+// Handle window mode toggling from renderer
+ipcMain.handle('toggleWindowMode', (_event, data) => {
+  if (!mainWindow) return { success: false, error: 'Main window not available' };
+
+  try {
+    const currentBounds = mainWindow.getBounds();
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: displayWidth, height: displayHeight } = primaryDisplay.workAreaSize;
+    
+    let targetWidth, targetHeight;
+
+    // Determine target size FIRST based on mode
+    if (data.mode === 'recording') {
+        targetWidth = RECORDING_WINDOW_WIDTH;
+        targetHeight = INITIAL_WINDOW_HEIGHT;
+    } else {
+        // Use requested/current size for other modes
+        targetWidth = data.width ?? currentBounds.width;
+        targetHeight = data.height ?? currentBounds.height;
+        // Clamp dimensions for non-recording modes
+        targetWidth = Math.max(INITIAL_WINDOW_WIDTH, Math.min(targetWidth, displayWidth));
+        targetHeight = Math.max(INITIAL_WINDOW_HEIGHT, Math.min(targetHeight, MAX_WINDOW_HEIGHT));
+    }
+    
+    let targetX, targetY;
+
+    // Determine position based on mode
+    if (data.mode === "minimized") {
+      // Top right
+      targetX = displayWidth - targetWidth - 20; 
+      targetY = 40; 
+    } else {
+      // Initial AND Recording: Center horizontally, position near bottom
+      targetX = Math.floor((displayWidth - targetWidth) / 2);
+      targetY = displayHeight - targetHeight - 60; 
+    }
+
+    // Only resize/reposition if needed
+    if (targetWidth !== currentBounds.width || 
+        targetHeight !== currentBounds.height ||
+        targetX !== currentBounds.x ||
+        targetY !== currentBounds.y
+        ) {
+      mainWindow.setBounds({
+        width: targetWidth,
+        height: targetHeight,
+        x: targetX,
+        y: targetY
+      });
+    }
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to toggle window mode:", error);
+    return { success: false, error: error.message };
+  }
+});
 
 // Set up the query handler
 setupQueryHandler();

@@ -36,6 +36,34 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.269 0 0);
   --sidebar-ring: oklch(0.439 0 0);
+  
+  /* App sizing variables */
+  --app-initial-height: 40px;
+  --app-max-height: 150px;
+  --app-initial-width: 400px;
+  
+  /* App color variables */
+  --app-bg: rgba(20, 20, 22, 0.8);
+  --app-input-bg: rgba(255, 255, 255, 0.07);
+  --app-input-border: rgba(255, 255, 255, 0.1);
+  --app-input-focus-border: rgba(255, 255, 255, 0.2);
+  --app-text: rgba(255, 255, 255, 0.9);
+  --app-placeholder: rgba(255, 255, 255, 0.4);
+  
+  --app-record-color: rgb(255, 255, 255);
+  --app-record-hover-bg: rgba(255, 255, 255, 0.15);
+  --app-replay-color: rgb(255, 255, 255);
+  --app-replay-hover-bg: rgba(255, 255, 255, 0.15);
+  
+  --app-send-bg: rgba(255, 255, 255, 0.9);
+  --app-send-hover-bg: rgba(255, 255, 255, 1);
+  --app-send-disabled-bg: rgba(255, 255, 255, 0.4);
+  --app-send-icon-color: black;
+  --app-send-disabled-icon-color: rgba(0, 0, 0, 0.4);
+  
+  --app-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+  --app-glow: 0 0 20px 2px rgba(255, 255, 255, 0.25);
+  --app-radius: 6px;
 }
 
 @theme inline {
@@ -84,13 +112,6 @@
   body {
     @apply bg-background text-foreground;
   }
-  
-  /* This was causing errors */
-  /* 
-  html {
-    @apply dark;
-  }
-  */
 }
 
 /* Electron draggable region styles */
@@ -105,4 +126,496 @@
 /* Ensure interactive elements inside draggable regions are still interactive */
 input, button, textarea, select, a, [role="button"] {
   -webkit-app-region: no-drag;
+}
+
+/* App container styles */
+.app-container-initial {
+  width: 100%;
+  height: 100%; /* Fill window height */
+  display: flex;
+  flex-direction: column; /* Stack history and command bar */
+  background-color: transparent;
+  overflow: hidden;
+  border-radius: var(--app-radius); /* Apply radius to overall container */
+  box-shadow: var(--app-shadow), var(--app-glow); /* Apply shadow/glow */
+}
+
+/* History Area */
+.history-area {
+  flex: 1; /* Allow history to take available space */
+  min-height: 0; /* Needed for flex shrinking */
+  background-color: var(--app-bg); /* Same background as command bar */
+  backdrop-filter: blur(10px);
+  /* max-height: var(--history-area-max-height); */ /* Max height defined in JS/Constants */
+  overflow: hidden; /* Let ScrollArea handle scroll */
+}
+
+.history-content {
+  padding: 10px 12px; /* Padding inside history */
+}
+
+.history-message {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08); 
+  color: var(--app-text);
+  position: relative;
+  display: flex; 
+  align-items: flex-start; 
+  gap: 8px; 
+}
+
+/* Remove border/margin from the last message */
+.history-message:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+/* Icon Container */
+.history-icon-container {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Message Content */
+.history-message-content {
+  flex: 1; 
+  min-width: 0; 
+  padding-right: 4px; /* Add slight padding to avoid touching scrollbar */
+  white-space: pre-wrap; /* Ensure wrapping */
+  word-wrap: break-word; /* Alternative word breaking */
+  overflow-wrap: break-word; /* Standard property for word breaking */
+  box-sizing: border-box; /* Include padding in width calculation */
+}
+
+/* User Message Style */
+.history-message.user .history-icon-container {
+  color: rgba(255, 255, 255, 0.6);
+}
+.history-message.user .history-message-content {
+  opacity: 0.7;
+}
+
+/* Agent Message Style */
+.history-message.agent {
+  padding-left: 24px;
+}
+
+/* Tool Message Style */
+.history-message.tool .history-icon-container {
+  color: rgba(255, 255, 255, 0.6);
+}
+.history-message.tool .history-message-content {
+  font-style: italic;
+  opacity: 0.9;
+}
+
+/* Error Message Style */
+.history-message.error {
+  color: var(--app-record-color);
+  opacity: 1;
+  padding-left: 24px;
+}
+
+/* Style markdown elements within history */
+.history-message p {
+  margin: 0 0 4px 0;
+}
+
+.history-message code {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.history-message a {
+  color: var(--app-replay-color);
+  text-decoration: none;
+}
+
+.history-message a:hover {
+  text-decoration: underline;
+}
+
+.history-message pre {
+  font-family: inherit;
+  margin: 0;
+  white-space: pre-wrap; /* Wrap text */
+  word-wrap: break-word;
+  overflow-wrap: break-word; 
+}
+
+/* Command bar - main control strip */
+.command-bar {
+  display: flex;
+  align-items: flex-start;
+  padding: 6px 8px;
+  height: auto;
+  min-height: 38px;
+  width: 100%;
+  max-width: 550px;
+  margin: 0 auto;
+  background-color: var(--app-bg);
+  border-radius: var(--app-radius);
+  box-shadow: var(--app-shadow), var(--app-glow);
+  backdrop-filter: blur(10px);
+  transition: height 0.1s ease-out;
+  border-top: 1px solid rgba(255, 255, 255, 0.08); /* Separator line */
+  flex-shrink: 0; /* Prevent command bar from shrinking */
+  box-shadow: none; /* Remove individual shadow, handled by parent */
+  border-radius: 0 0 var(--app-radius) var(--app-radius); /* Only bottom radius */
+}
+
+/* Action buttons container */
+.action-buttons {
+  display: flex;
+  gap: 6px;
+  margin-right: 8px;
+}
+
+/* Common styles for action buttons */
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background-color: transparent;
+  color: var(--app-text);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+/* Record button specific styles */
+.action-button.record:hover {
+  background-color: var(--app-record-hover-bg);
+  color: var(--app-record-color);
+}
+
+/* Replay button specific styles */
+.action-button.replay:hover {
+  background-color: var(--app-replay-hover-bg);
+  color: var(--app-replay-color);
+}
+
+/* Input container styles */
+.input-container {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+/* Command input styles */
+.command-input {
+  width: 100%;
+  height: auto;
+  min-height: 26px;
+  max-height: calc(var(--app-max-height) * 0.4); /* Limit command input height relative to max window height */
+  padding: 4px 8px;
+  background-color: var(--app-input-bg);
+  border: 1px solid var(--app-input-border);
+  border-radius: 4px;
+  color: var(--app-text);
+  font-size: 13px;
+  font-weight: 400;
+  transition: all 0.15s ease;
+  resize: none;
+  overflow-y: auto;
+  overflow-x: auto;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  flex: 1;
+}
+
+.command-input::placeholder {
+  color: var(--app-placeholder);
+}
+
+.command-input:focus {
+  outline: none;
+  border-color: var(--app-input-focus-border);
+}
+
+/* Send button styles */
+.send-button {
+  margin-top: 4px;
+  flex-shrink: 0;
+  background-color: var(--app-send-bg);
+  border: none;
+  border-radius: 50%;
+  color: var(--app-send-icon-color);
+  display: flex;
+  padding: 0;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.send-button:hover:not(:disabled) {
+  background-color: var(--app-send-hover-bg);
+  transform: scale(1.05);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.send-button:disabled {
+  background-color: var(--app-send-disabled-bg);
+  color: var(--app-send-disabled-icon-color);
+  opacity: 1;
+  cursor: default;
+  box-shadow: none;
+  transform: scale(1);
+}
+
+/* New recording bar styles */
+.command-bar.recording-bar {
+  justify-content: center; 
+  padding: 0 8px; /* Reduce padding for tight fit */
+  background-color: var(--app-bg); 
+  backdrop-filter: blur(10px);
+  box-shadow: var(--app-shadow), var(--app-glow); 
+  border-radius: var(--app-radius); 
+  box-sizing: border-box; /* Include padding in height calculation */
+  height: 100%; /* Fill the small window height */
+  display: flex; /* Ensure flex is still applied */
+  align-items: center; /* Vertically center button */
+}
+
+/* Stop button centered in recording bar */
+.stop-recording-button-centered {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none; 
+  /* Use a distinct but subtle style */
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--app-text); 
+  font-size: 13px;
+  font-weight: 500; /* Slightly bolder */
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.stop-recording-button-centered:hover {
+  background-color: var(--app-record-color); /* Red background */
+  color: black; /* Black text/icon */
+}
+
+/* Workflows mode styles */
+.workflows-container {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--app-bg);
+  box-shadow: var(--app-shadow), var(--app-glow);
+  backdrop-filter: blur(10px);
+  padding: 12px;
+}
+
+.workflows-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  position: relative; /* Make header the positioning context */
+  height: 28px; /* Give header explicit height for alignment */
+}
+
+.back-button {
+  border: none;
+  background: transparent;
+  color: var(--app-text);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.back-button:hover {
+  background-color: var(--app-input-bg);
+}
+
+.workflows-title {
+  /* flex: 1; */ /* Remove flex grow */
+  position: absolute; /* Position absolutely */
+  left: 50%; /* Center horizontally */
+  transform: translateX(-50%); /* Fine-tune centering */
+  /* text-align: center; */ /* No longer needed with absolute centering */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--app-text);
+  white-space: nowrap; /* Prevent wrapping */
+}
+
+.workflows-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+}
+
+.workflows-list {
+  overflow-y: auto;
+  flex: 1;
+  padding-right: 4px;
+}
+
+.workflow-item {
+  display: flex; /* Use flex to layout title and button */
+  align-items: center; /* Vertically align items */
+  justify-content: space-between; /* Push button to the right */
+  padding: 8px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+  color: var(--app-text);
+  font-size: 13px;
+  margin-bottom: 4px; /* Increased spacing */
+}
+
+.workflow-item:hover {
+  background-color: var(--app-input-bg);
+}
+
+.workflow-item-title {
+  flex-grow: 1; /* Allow title to take space */
+  margin-right: 8px; /* Space between title and button */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workflow-run-button {
+  display: inline-flex; /* Use inline-flex */
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 4px;
+  background-color: transparent;
+  color: var(--app-placeholder);
+  flex-shrink: 0; /* Prevent shrinking */
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.workflow-run-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--app-replay-color); /* Use replay blue for hover */
+}
+
+/* Minimized mode styles */
+.minimized-container {
+  width: 100%; 
+  max-width: var(--app-minimized-width);
+  margin: 0 auto; 
+  height: auto; 
+  min-height: var(--app-initial-height); 
+  display: flex;
+  align-items: flex-start;
+  padding: 8px 12px; /* Revert right padding, button is absolute */
+  background-color: var(--app-bg);
+  box-shadow: var(--app-shadow), var(--app-glow);
+  backdrop-filter: blur(10px);
+  border-radius: var(--app-radius);
+  overflow: hidden; 
+  box-sizing: border-box; 
+  position: relative; /* Needed for absolute positioning of children */
+}
+
+/* Pulsing activity indicator */
+.activity-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: rgba(255, 255, 255, 0.7);
+  margin-right: 10px; /* Space between indicator and text */
+  animation: pulse-indicator 1.8s infinite ease-in-out;
+  flex-shrink: 0; /* Prevent shrinking */
+  margin-bottom: 24px; /* Add margin below if content is short */
+}
+
+/* Keyframes for the pulse animation */
+@keyframes pulse-indicator {
+  0%, 100% {
+    transform: scale(0.8);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+}
+
+.minimized-content {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--app-text);
+  opacity: 0.8;
+  white-space: pre-wrap;
+  overflow: hidden;
+  flex-grow: 1;
+  min-width: 0;
+  word-break: break-word;
+  padding-bottom: 24px; /* Add padding at the bottom to avoid overlap */
+}
+
+/* Stop button in minimized view */
+.stop-button {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 22px; 
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  background-color: rgba(255, 255, 255, 0.1); 
+  color: var(--app-placeholder); 
+  transition: all 0.15s ease;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stop-button:hover {
+  background-color: var(--app-record-color);
+  color: black;
+}
+
+/* Override ReactMarkdown default paragraph margin */
+.minimized-content p {
+  margin: 0;
+}
+
+/* Remove underline from links within specific containers */
+.minimized-content a,
+.workflow-item a {
+  text-decoration: none;
+}
+
+.minimized-content a:hover,
+.workflow-item a:hover {
+  text-decoration: underline;
 }

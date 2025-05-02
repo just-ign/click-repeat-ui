@@ -1,20 +1,42 @@
 import { useEffect, useRef, useState } from "react";
-import { PlayCircle, Mic, Loader2, ArrowUp, Square, User, Wrench, Radio, Repeat, CircleDot, ScreenShare, ScreenShareOff, MousePointerClick, Play } from "lucide-react";
+import { PlayCircle, Mic, Loader2, ArrowUp, Square, User, Wrench, Radio, Repeat, CircleDot, ScreenShare, ScreenShareOff, MousePointerClick, Play, Edit, Paperclip, PlusCircle, Trash2, Save, X, Workflow, Computer, ChevronDown } from "lucide-react";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import ReactMarkdown from 'react-markdown';
 import { getWorkflows } from "./api";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
-const INITIAL_WINDOW_HEIGHT = 40; // Keep this as the base/recording height
-const MAX_WINDOW_HEIGHT = 350; 
-const INITIAL_WINDOW_WIDTH = 400;
+const INITIAL_WINDOW_HEIGHT = 80; // Keep this as the base/recording height
+const MAX_WINDOW_HEIGHT = 500; // Increased Max height for dropdowns
+const INITIAL_WINDOW_WIDTH = 600; // Reduced width
 // const MAX_WINDOW_WIDTH = 600; // Max width before horizontal scroll (Optional)
-const MINIMIZED_DEFAULT_WIDTH = 350;
-const MINIMIZED_WINDOW_HEIGHT = 32;
-const RECORDING_WINDOW_WIDTH = 130; // Tighter width, just for the button
-const RECORDING_WINDOW_HEIGHT = INITIAL_WINDOW_HEIGHT; // Match initial height
+const MINIMIZED_DEFAULT_WIDTH = 455;
+const MINIMIZED_WINDOW_HEIGHT = 42;
+const RECORDING_WINDOW_WIDTH = 200; // Further increased width
+const RECORDING_WINDOW_HEIGHT = 50; // Match command bar min-height
 const PLAY_WINDOW_WIDTH = 300;
 const PLAY_WINDOW_HEIGHT = 300;
 // const HISTORY_AREA_MAX_HEIGHT = MAX_WINDOW_HEIGHT - 60; // No longer needed, calculated dynamically
+
+// Define structure for Important Input Text Fields
+interface ImportantField {
+    Field: string;
+    Value: string;
+}
+
+// Define Workflow type locally to ensure correct structure
+interface Workflow {
+    Title: string;
+    Steps: string[];
+    "Important Input Text Fields"?: ImportantField[]; // Use correct name and type
+}
+
+// Define AgentMessage type if not already globally defined
+// Assume it includes properties used below (type, content, actionDetails)
+// interface AgentMessage { ... }
+
+// Placeholder data (replace with actual data source later)
+const VMS = ["macos-sequoia-vm-1", "ubuntu-docker-large", "windows-gpu-vm"];
+const MODELS = ["claude-3.7-sonnet", "gpt-4o", "gemini-1.5-pro"];
 
 function App() {
   const removeListenerRef = useRef<(() => void) | null>(null);
@@ -35,26 +57,37 @@ function App() {
     show: boolean;
     workflows: Workflow[];
     loading: boolean;
+    editingWorkflowIndex: number | null;
+    editedWorkflow: Workflow | null;
   }>({
     show: false,
     workflows: [],
     loading: false,
+    editingWorkflowIndex: null,
+    editedWorkflow: null,
   });
+  const [attachedWorkflow, setAttachedWorkflow] = useState<Workflow | null>(null);
+  // State for VM/Model selection
+  const [availableVms, setAvailableVms] = useState<string[]>(VMS);
+  const [selectedVm, setSelectedVm] = useState<string>(VMS[0]);
+  const [availableModels, setAvailableModels] = useState<string[]>(MODELS);
+  const [selectedModel, setSelectedModel] = useState<string>(MODELS[0]);
   const historyScrollAreaRef = useRef<HTMLDivElement>(null);
   const commandBarRef = useRef<HTMLDivElement>(null);
 
   const isRecording = windowMode.mode === "recording";
 
-  const cleanToolAction = (action: string) => {
+  const cleanToolAction = (action: string | undefined) => { // Added undefined check
     if (!action) return;
     return action
       .replace("_", " ")
       .replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
-  const latestMessage = messages[messages.length - 1];
+  // Ensure latestMessage and its properties are checked before access
+  const latestMessage = messages.length > 0 ? messages[messages.length - 1] : null;
   const isToolAction =
-    latestMessage?.actionDetails?.tool_input.action ||
+    latestMessage?.actionDetails?.tool_input?.action ||
     latestMessage?.actionDetails?.action;
 
   // Focus input when app loads
@@ -134,25 +167,42 @@ function App() {
 
   // Effect to resize INITIAL window based on history + command bar content height
   useEffect(() => {
-    if (windowMode.mode === 'initial' && !workflows.show) {
+    // Also check that we are not currently editing a workflow, as that view has its own size logic
+    if (windowMode.mode === 'initial' && !workflows.show && workflows.editingWorkflowIndex === null) {
+      // Recalculate height based on visible elements
       const historyHeight = historyScrollAreaRef.current?.scrollHeight || 0;
-      const commandBarHeight = commandBarRef.current?.offsetHeight || 38; // Get actual or default
+      const commandBarHeight = commandBarRef.current?.offsetHeight || 50; // Use a reasonable default if ref not ready
+      
+      // Calculate required height based on history + command bar (which includes indicator + context bar if present)
       const requiredHeight = Math.min(MAX_WINDOW_HEIGHT, historyHeight + commandBarHeight);
       
       if (requiredHeight > 0 && requiredHeight !== windowMode.height) {
-        setWindowMode(prev => ({ ...prev, height: requiredHeight }));
+          console.log(`Initial mode resize: history=${historyHeight}, commandBar=${commandBarHeight}, required=${requiredHeight}`); // Debug log
+          setWindowMode(prev => ({ ...prev, height: requiredHeight }));
       }
     }
-    // Rerun when messages change (affects history) or chat input changes (affects command bar)
-  }, [messages, chatInput, windowMode.mode, workflows.show]);
+    // Rerun when messages, input, mode, workflows.show, or attachedWorkflow changes
+  }, [messages, chatInput, windowMode.mode, workflows.show, attachedWorkflow, workflows.editingWorkflowIndex]);
 
   // Effect to resize MINIMIZED window based on actual rendered content height
   useEffect(() => {
     if (windowMode.mode === 'minimized' && minimisedDivRef.current) {
-        const requiredHeight = Math.min(MAX_WINDOW_HEIGHT, minimisedDivRef.current.scrollHeight + 16);
-        if (requiredHeight !== windowMode.height) {
-          setWindowMode(prev => ({ ...prev, height: requiredHeight }));
+      // Debounce the height update
+      const timer = setTimeout(() => {
+        if (minimisedDivRef.current) { // Check ref again inside timeout
+          const requiredHeight = Math.min(MAX_WINDOW_HEIGHT, minimisedDivRef.current.scrollHeight);
+          
+          // Check current height *inside* timeout to avoid stale closure value
+          setWindowMode(prev => {
+            if (prev.mode === 'minimized' && requiredHeight !== prev.height) {
+               return { ...prev, height: requiredHeight };
+            }
+            return prev; // No change needed
+          });
         }
+      }, 50); // Wait 50ms before measuring and updating
+
+      return () => clearTimeout(timer); // Cleanup timeout on unmount or dependency change
     }
     // Keep original dependencies
   }, [latestMessage, windowMode.mode]); 
@@ -181,10 +231,36 @@ function App() {
   };
 
   const handleSendMessage = () => {
-    if (!chatInput.trim()) return;
-    window.electronAPI.handleQuery(chatInput);
-    setChatInput("");
-    // Don't immediately switch to minimized here, let the message effect handle it
+    const userInstructions = chatInput.trim();
+
+    if (attachedWorkflow) {
+        const formattedWorkflow = formatWorkflowForQuery(attachedWorkflow);
+        let combinedQuery = formattedWorkflow;
+
+        // Add user instructions section only if there are instructions
+        if (userInstructions) {
+          // Check if the workflow part ended with ----, if not, add it
+          if (!combinedQuery.endsWith("----")) {
+             combinedQuery += "\n----"; // Add separator if fields were missing
+          }
+          combinedQuery += `\nUser instruction:\n${userInstructions}`;
+        }
+
+        console.log("Sending combined query:", combinedQuery); // Debug log
+        window.electronAPI.handleQuery(combinedQuery);
+
+        setAttachedWorkflow(null); // Clear attached workflow after sending
+        setChatInput(""); // Clear chat input
+
+    } else if (userInstructions) {
+        // Send only user input if no workflow attached
+        // Format as only user instruction
+        const queryToSend = `User instruction:\n${userInstructions}`;
+        console.log("Sending standard query:", queryToSend);
+        window.electronAPI.handleQuery(queryToSend);
+        setChatInput(""); // Clear chat input
+    }
+    // Do nothing if input is empty and no workflow attached
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -202,21 +278,25 @@ function App() {
     setWorkflows({
       ...workflows,
       loading: true,
-      show: true
+      show: true,
+      editingWorkflowIndex: null, // Reset editing state on reload
+      editedWorkflow: null,
     });
     try {
       const response = await getWorkflows();
       if (!response.ok) throw new Error('Failed to fetch workflows');
       const parsedResponse = await response.json();
-      setWorkflows({
-        ...workflows,
+      setWorkflows(prev => ({ // Use previous state to keep show=true
+        ...prev,
         workflows: parsedResponse.workflows || [],
         loading: false,
-        show: true
-      });
+        // show: true - already set
+        // editingWorkflowIndex: null - already set
+        // editedWorkflow: null - already set
+      }));
     } catch (error) {
         console.error("Error loading workflows:", error);
-        setWorkflows({ show: true, workflows: [], loading: false }); // Show empty state on error
+        setWorkflows(prev => ({ ...prev, workflows: [], loading: false })); // Keep show=true on error
     }
   };
 
@@ -224,15 +304,17 @@ function App() {
     if (!workflows.show) {
       setWindowMode({
         mode: "initial", // Keep mode as initial when showing workflows
-        width: PLAY_WINDOW_WIDTH,
-        height: PLAY_WINDOW_HEIGHT,
+        width: INITIAL_WINDOW_WIDTH, // Use initial width
+        height: MAX_WINDOW_HEIGHT,  // Use max height
       });
-      reloadWorkflows();
+      reloadWorkflows(); // Reload when opening
     } else {
-      setWorkflows({
-        ...workflows,
+      setWorkflows(prev => ({
+        ...prev,
         show: false,
-      });
+        editingWorkflowIndex: null, // Reset editing state when closing
+        editedWorkflow: null,
+      }));
       // Return to previous initial state dimensions
       setWindowMode({
         mode: "initial",
@@ -242,17 +324,162 @@ function App() {
     }
   };
 
-  const selectWorkflow = (index: number) => {
-    setWorkflows({
-      ...workflows,
-      show: false,
-    });
-    run_workflow(workflows.workflows[index]);
+  const attachWorkflow = (index: number) => {
+    const workflow = workflows.workflows[index];
+    if (workflow) {
+      setAttachedWorkflow(workflow); // Set the attached workflow state
+      setChatInput(""); // Clear any existing chat input
+      toggleWorkflowList(); // Close the workflow list
+      // Focus the input after a short delay to allow UI updates
+      setTimeout(() => chatInputRef.current?.focus(), 50);
+    }
   };
 
-  const run_workflow = (workflow: Workflow) => {
-    window.electronAPI.handleQuery(workflow.Steps.join("\n"));
-    // Let the message effect handle the transition to minimized
+  // Function to start editing a workflow
+  const startEditingWorkflow = (index: number) => {
+     setWorkflows(prev => ({
+       ...prev,
+       editingWorkflowIndex: index,
+       // Deep copy the workflow to avoid modifying the original state directly
+       editedWorkflow: JSON.parse(JSON.stringify(prev.workflows[index])),
+     }));
+  };
+
+  // Function to cancel editing
+  const cancelEditWorkflow = () => {
+      setWorkflows(prev => ({
+        ...prev,
+        editingWorkflowIndex: null,
+        editedWorkflow: null,
+      }));
+  };
+
+  // Function to handle changes in the edited workflow (title and steps)
+  const handleEditChange = (field: 'Title' | 'Step', value: string, stepIndex?: number) => {
+    setWorkflows(prev => {
+      if (!prev.editedWorkflow) return prev; // Should not happen
+
+      const updatedWorkflow = { ...prev.editedWorkflow };
+
+      if (field === 'Title') {
+        updatedWorkflow.Title = value;
+      } else if (field === 'Step' && stepIndex !== undefined) {
+        // Ensure Steps array exists (it should, but good practice)
+        updatedWorkflow.Steps = updatedWorkflow.Steps || [];
+        updatedWorkflow.Steps[stepIndex] = value;
+      }
+
+      return { ...prev, editedWorkflow: updatedWorkflow };
+    });
+  };
+
+  // Function to handle changes in the important input fields
+  const handleImportantFieldChange = (index: number, key: 'Field' | 'Value', value: string) => {
+    setWorkflows(prev => {
+      if (!prev.editedWorkflow) return prev;
+
+      // Clone the existing fields or start with an empty array
+      const updatedFields: ImportantField[] = [...(prev.editedWorkflow["Important Input Text Fields"] || [])];
+
+      if (index >= 0 && index < updatedFields.length) {
+          // Clone the specific field object before modifying
+          updatedFields[index] = { ...updatedFields[index], [key]: value };
+      }
+
+      return {
+        ...prev,
+        editedWorkflow: {
+          ...prev.editedWorkflow,
+          "Important Input Text Fields": updatedFields,
+        },
+      };
+    });
+  };
+
+  // Function to add a new step during editing
+  const addStepToWorkflow = () => {
+    setWorkflows(prev => {
+      if (!prev.editedWorkflow) return prev;
+      const updatedWorkflow = {
+        ...prev.editedWorkflow,
+        // Ensure Steps array exists before adding
+        Steps: [...(prev.editedWorkflow.Steps || []), ""] // Add empty step
+      };
+      return { ...prev, editedWorkflow: updatedWorkflow };
+    });
+  };
+
+  // Function to remove a step during editing
+  const removeStepFromWorkflow = (stepIndex: number) => {
+    setWorkflows(prev => {
+      if (!prev.editedWorkflow || !prev.editedWorkflow.Steps) return prev;
+      const updatedWorkflow = {
+        ...prev.editedWorkflow,
+        Steps: prev.editedWorkflow.Steps.filter((_, index) => index !== stepIndex)
+      };
+      return { ...prev, editedWorkflow: updatedWorkflow };
+    });
+  };
+
+  // Function to add a new important input field
+  const addImportantField = () => {
+    setWorkflows(prev => {
+      if (!prev.editedWorkflow) return prev;
+      // Ensure the array exists and clone it, then push the new object
+      const updatedFields: ImportantField[] = [
+        ...(prev.editedWorkflow["Important Input Text Fields"] || []),
+        { Field: "", Value: "" } // Add new field object
+      ];
+
+      return {
+        ...prev,
+        editedWorkflow: {
+          ...prev.editedWorkflow,
+          "Important Input Text Fields": updatedFields,
+        },
+      };
+    });
+  };
+
+  // Function to remove an important input field
+  const removeImportantField = (indexToRemove: number) => {
+      setWorkflows(prev => {
+          // Use the correct property name with quotes
+          if (!prev.editedWorkflow || !prev.editedWorkflow["Important Input Text Fields"]) return prev;
+
+          // Use the correct property name with quotes
+          const updatedFields = prev.editedWorkflow["Important Input Text Fields"].filter((_, index) => index !== indexToRemove);
+
+          return {
+              ...prev,
+              editedWorkflow: {
+                  ...prev.editedWorkflow,
+                   // Use the correct property name with quotes
+                  "Important Input Text Fields": updatedFields,
+              },
+          };
+      });
+  };
+
+  // Function to save the edited workflow (client-side only for now)
+  const saveEditedWorkflow = () => {
+    setWorkflows(prev => {
+      if (prev.editingWorkflowIndex === null || !prev.editedWorkflow) return prev; // Should not happen
+
+      const updatedWorkflows = [...prev.workflows];
+      updatedWorkflows[prev.editingWorkflowIndex] = prev.editedWorkflow;
+
+      // TODO: Add backend API call here later
+
+      console.log("Saving workflow (client-side):", prev.editedWorkflow); // For debugging
+
+      return {
+        ...prev,
+        workflows: updatedWorkflows,
+        editingWorkflowIndex: null, // Exit edit mode
+        editedWorkflow: null,
+      };
+    });
   };
 
   // Function to reset state to initial
@@ -266,6 +493,37 @@ function App() {
       height: INITIAL_WINDOW_HEIGHT, // Set base, effect will adjust
       width: INITIAL_WINDOW_WIDTH // Reset width too
     }));
+  };
+
+  // Helper function to format workflow Steps and Fields into a single string
+  const formatWorkflowForQuery = (workflow: Workflow): string => {
+    // Start with Steps header
+    let output = "Steps:\n" + workflow.Steps.join("\n");
+
+    // Add separator after steps
+    output += "\n----";
+
+    if (workflow["Important Input Text Fields"] && workflow["Important Input Text Fields"].length > 0) {
+      // Add Fields header
+      output += "\nImportant text field inputs:\n";
+      workflow["Important Input Text Fields"].forEach(field => {
+        if (field.Field || field.Value) {
+            output += `- ${field.Field || '[No Field Name]'}: ${field.Value || '[No Value]'}\n`;
+        }
+      });
+      // Add separator after fields
+      output += "----";
+    }
+    // No trim needed here as separators handle spacing
+    return output;
+  };
+
+  // Detach workflow function
+  const detachWorkflow = () => {
+    setAttachedWorkflow(null);
+    // Optionally clear chat input or keep it?
+    // setChatInput("");
+    setTimeout(() => chatInputRef.current?.focus(), 0); // Keep focus on input
   };
 
   // Conditional rendering for initial view
@@ -322,35 +580,94 @@ function App() {
           </ScrollArea>
         )}
 
-        <div ref={commandBarRef} className="command-bar non-draggable" style={{ minHeight: '38px' }}>
-             <div className="action-buttons">
-               <button className="action-button record" onClick={startRecording} title="Record Actions">
-                 <ScreenShare size={14} />
-               </button>
-               <button className="action-button replay" onClick={toggleWorkflowList} title="Replay Workflow">
-                 <MousePointerClick size={14} />
-               </button>
+        <div ref={commandBarRef} className="command-bar non-draggable" >
+             {/* Workflow Attachment Indicator */}
+             {attachedWorkflow && (
+                <div className="workflow-attachment-indicator non-draggable"> 
+                    {/* Icon Removed */}
+                    <span className="indicator-title" title={attachedWorkflow.Title}> 
+                         / {attachedWorkflow.Title} 
+                    </span>
+                    {/* Restore Remove Button */}
+                    <button
+                        className="indicator-remove" 
+                        onClick={detachWorkflow}
+                        title="Detach Workflow"
+                    >
+                        <X size={12} />
+                    </button>
+                </div>
+             )}
+
+             {/* Command Bar Content (Buttons + Input) */}
+             <div className="command-bar-content">
+                 <div className="action-buttons">
+                   <button className="action-button record" onClick={startRecording} title="Record Actions">
+                     <ScreenShare size={18} />
+                   </button>
+                   <button className="action-button replay" onClick={toggleWorkflowList} title="Replay Workflow">
+                     <MousePointerClick size={18} />
+                   </button>
+                 </div>
+                 <div className="input-container">
+                   <textarea
+                     ref={chatInputRef}
+                     value={chatInput}
+                     onChange={(e) => setChatInput(e.target.value)}
+                     onKeyDown={handleKeyDown}
+                     placeholder={attachedWorkflow ? "Add instructions for attached workflow..." : "Command your computer..."} // Dynamic placeholder
+                     className="command-input"
+                     rows={1}
+                     autoFocus
+                   />
+                   <button
+                     className="send-button"
+                     onClick={handleSendMessage}
+                     disabled={!attachedWorkflow && !chatInput.trim()} // Disabled only if no workflow AND no text
+                     title={attachedWorkflow ? "Send Workflow + Instructions" : "Send command (Enter) | New line (Cmd/Ctrl+Enter)"} // Dynamic title
+                   >
+                     <ArrowUp size={16} />
+                   </button>
+               </div>
              </div>
-             <div className="input-container">
-               <textarea
-                 ref={chatInputRef}
-                 value={chatInput}
-                 onChange={(e) => setChatInput(e.target.value)}
-                 onKeyDown={handleKeyDown}
-                 placeholder="Command your computer..."
-                 className="command-input"
-                 rows={1}
-                 autoFocus
-               />
-               <button 
-                 className="send-button" 
-                 onClick={handleSendMessage}
-                 disabled={!chatInput.trim()}
-                 title="Send command (Enter) | New line (Cmd/Ctrl+Enter)"
-               >
-                 <ArrowUp size={12} />
-               </button>
-           </div>
+
+             {/* Execution Context Bar (VM/Model) */}
+             <div className="execution-context-bar non-draggable">
+                 {/* VM Dropdown */} 
+                 <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <button className="vm-selector-button"> {/* Use button for better accessibility */} 
+                            <Computer size={14} className="vm-icon" /> 
+                            <span className="vm-text">{selectedVm}</span>
+                            <ChevronDown size={14} className="dropdown-chevron"/>
+                        </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" side="bottom">
+                        {availableVms.map((vm) => (
+                            <DropdownMenuItem key={vm} onSelect={() => setSelectedVm(vm)}>
+                                {vm}
+                            </DropdownMenuItem>
+                        ))}
+                    </DropdownMenuContent>
+                 </DropdownMenu>
+
+                 {/* Model Dropdown */} 
+                 <DropdownMenu>
+                     <DropdownMenuTrigger asChild>
+                        <button className="model-indicator-button"> {/* Use button */} 
+                            <span className="model-text">{selectedModel}</span>
+                             <ChevronDown size={14} className="dropdown-chevron"/>
+                        </button>
+                     </DropdownMenuTrigger>
+                     <DropdownMenuContent align="end" side="bottom">
+                        {availableModels.map((model) => (
+                            <DropdownMenuItem key={model} onSelect={() => setSelectedModel(model)}>
+                                {model}
+                            </DropdownMenuItem>
+                        ))}
+                     </DropdownMenuContent>
+                 </DropdownMenu>
+             </div>
          </div>
       </div>
     );
@@ -362,7 +679,6 @@ function App() {
       <div className="app-container-initial draggable"> {/* Match initial container */}
         <div 
           className="command-bar recording-bar non-draggable" 
-          style={{ height: `${INITIAL_WINDOW_HEIGHT}px` /* Explicit initial height */ }}
         >
           {/* Centered Stop Button */} 
           <button
@@ -370,7 +686,7 @@ function App() {
             className="stop-recording-button-centered"
             title="Stop Recording"
           >
-            <ScreenShareOff size={14} className="mr-1.5"/> 
+            <ScreenShareOff size={18} className="mr-1.5"/> 
             Stop Recording
           </button>
         </div>
@@ -381,40 +697,163 @@ function App() {
   // Conditional rendering for workflows mode 
   if (workflows.show) {
      return (
-         <div className="workflows-container" style={{ height: `${windowMode.height}px` }}>
-           <div className="workflows-header">
-             <button className="back-button" onClick={toggleWorkflowList}>
+         <div className="workflows-container non-draggable" style={{ height: `${windowMode.height}px` }}>
+           <div className="workflows-header draggable">
+             <button className="back-button non-draggable" onClick={toggleWorkflowList}>
                ← Back
              </button>
-             <div className="workflows-title">Saved Workflows</div>
+             <div className="workflows-title">
+                {workflows.editingWorkflowIndex !== null ? 'Edit Workflow' : 'Saved Workflows'}
+             </div>
+             {/* Optional: Add a Save/Cancel button here if editing */}
+             {workflows.editingWorkflowIndex !== null && workflows.editedWorkflow && (
+                <div className="workflow-edit-header-actions non-draggable">
+                    <button
+                        className="workflow-action-button save"
+                        onClick={saveEditedWorkflow}
+                        title="Save Changes"
+                    >
+                        <Save size={16} />
+                    </button>
+                    <button
+                        className="workflow-action-button cancel"
+                        onClick={cancelEditWorkflow}
+                        title="Cancel Edit"
+                    >
+                        <X size={16} />
+                    </button>
+                </div>
+             )}
            </div>
-           
+
            {workflows.loading ? (
              <div className="workflows-loading">
                <Loader2 className="animate-spin" size={16} />
              </div>
+           ) : workflows.editingWorkflowIndex !== null && workflows.editedWorkflow ? (
+              // *** EDIT WORKFLOW VIEW ***
+              <ScrollArea className="workflow-edit-view-scroll-area">
+                <div className="workflow-edit-view">
+                  {/* Title Section */}
+                  <div className="workflow-edit-form-group">
+                      <label htmlFor="workflow-title">Title</label>
+                      <input
+                          type="text"
+                          id="workflow-title"
+                          value={workflows.editedWorkflow.Title}
+                          onChange={(e) => handleEditChange('Title', e.target.value)}
+                          className="workflow-edit-input"
+                          placeholder="Workflow Title"
+                      />
+                  </div>
+
+                  {/* Steps Section */}
+                  <div className="workflow-edit-form-group">
+                      <label>Steps</label>
+                      {/* <ScrollArea className="workflow-steps-edit-area"> */} {/* Removed inner ScrollArea */}
+                          {(workflows.editedWorkflow.Steps || []).map((step, stepIdx) => (
+                              <div key={stepIdx} className="workflow-edit-step">
+                                  <textarea
+                                      value={step}
+                                      onChange={(e) => handleEditChange('Step', e.target.value, stepIdx)}
+                                      className="workflow-edit-textarea"
+                                      placeholder={`Step ${stepIdx + 1}`}
+                                      rows={2} // Start with 2 rows, could auto-resize later
+                                  />
+                                  <button
+                                      className="workflow-step-delete-button"
+                                      onClick={() => removeStepFromWorkflow(stepIdx)}
+                                      title="Remove Step"
+                                  >
+                                      <Trash2 size={14} />
+                                  </button>
+                              </div>
+                          ))}
+                      {/* </ScrollArea> */}
+                      <button
+                          className="workflow-step-add-button"
+                          onClick={addStepToWorkflow}
+                          title="Add Step"
+                      >
+                          <PlusCircle size={16} className="mr-1"/> Add Step
+                      </button>
+                  </div>
+
+                  {/* Important Fields Section */}
+                  <div className="workflow-edit-form-group">
+                      <label>Important Input Fields</label>
+                      <div className="workflow-important-fields-area">
+                          {/* Map over the correctly typed array */}
+                          {(workflows.editedWorkflow["Important Input Text Fields"] || []).map((field, fieldIdx) => (
+                              <div key={fieldIdx} className="workflow-edit-important-field">
+                                  <input
+                                      type="text"
+                                      value={field.Field}
+                                      onChange={(e) => handleImportantFieldChange(fieldIdx, 'Field', e.target.value)}
+                                      className="workflow-edit-input field-key"
+                                      placeholder="Field Name (e.g., Search Term)"
+                                  />
+                                  <input
+                                      type="text"
+                                      value={field.Value}
+                                      onChange={(e) => handleImportantFieldChange(fieldIdx, 'Value', e.target.value)}
+                                      className="workflow-edit-input field-value"
+                                      placeholder="Value (e.g., [item name])"
+                                  />
+                                  <button
+                                      className="workflow-important-field-delete-button"
+                                      onClick={() => removeImportantField(fieldIdx)}
+                                      title="Remove Field"
+                                  >
+                                      <Trash2 size={14} />
+                                  </button>
+                              </div>
+                          ))}
+                      </div>
+                      <button
+                          className="workflow-step-add-button" /* Reusing add button style */
+                          onClick={addImportantField}
+                          title="Add Important Field"
+                      >
+                          <PlusCircle size={16} className="mr-1"/> Add Field
+                      </button>
+                  </div>
+                </div>
+              </ScrollArea>
            ) : workflows.workflows.length > 0 ? (
+             // *** WORKFLOW LIST VIEW ***
              <ScrollArea className="workflows-list">
                {workflows.workflows.map((workflow, idx) => (
-                 <div
-                   key={idx}
-                   className="workflow-item"
-                 >
+                 <div key={idx} className="workflow-item">
                    <span className="workflow-item-title">{workflow.Title}</span>
-                   <button 
-                     className="workflow-run-button" 
-                     onClick={(e) => { 
-                       e.stopPropagation(); // Prevent row click if any
-                       selectWorkflow(idx); 
-                     }}
-                     title="Run Workflow"
-                   >
-                     <Play size={14} />
-                   </button>
+                   <div className="workflow-item-actions">
+                     <button
+                       className="workflow-action-button edit"
+                       onClick={() => startEditingWorkflow(idx)}
+                       title="Edit Workflow"
+                     >
+                       <Edit size={16} />
+                     </button>
+                     <button
+                       className="workflow-action-button attach"
+                       onClick={() => attachWorkflow(idx)} // Use attachWorkflow
+                       title="Attach Workflow to Command Bar"
+                     >
+                       <Paperclip size={16} />
+                     </button>
+                     <button
+                       className="workflow-action-button run"
+                       onClick={() => attachWorkflow(idx)} // Use attachWorkflow
+                       title="Attach Workflow to Command Bar"
+                     >
+                       <Play size={16} />
+                     </button>
+                   </div>
                  </div>
                ))}
              </ScrollArea>
            ) : (
+              // Empty state remains the same
              <div className="workflows-empty">No workflows found.</div>
            )}
          </div>

@@ -83,16 +83,18 @@ ipcMain.handle('toggleWindowMode', (_event, data) => {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: displayWidth, height: displayHeight } = primaryDisplay.workAreaSize;
     
-    let targetWidth, targetHeight;
+    // Use requested size directly from data for ALL modes first
+    let targetWidth = data.width ?? currentBounds.width;
+    let targetHeight = data.height ?? currentBounds.height;
 
-    // Determine target size FIRST based on mode
+    // Apply constraints/clamping based on mode AFTER getting initial target
     if (data.mode === 'recording') {
-        targetWidth = RECORDING_WINDOW_WIDTH;
-        targetHeight = INITIAL_WINDOW_HEIGHT;
+        // Recording mode might have different constraints if needed in the future,
+        // but for now, we just use the values from App.tsx.
+        // Ensure minimums aren't violated (optional, but safe)
+        targetWidth = Math.max(50, targetWidth); // Example minimum width
+        targetHeight = Math.max(30, targetHeight); // Example minimum height
     } else {
-        // Use requested/current size for other modes
-        targetWidth = data.width ?? currentBounds.width;
-        targetHeight = data.height ?? currentBounds.height;
         // Clamp dimensions for non-recording modes
         targetWidth = Math.max(INITIAL_WINDOW_WIDTH, Math.min(targetWidth, displayWidth));
         targetHeight = Math.max(INITIAL_WINDOW_HEIGHT, Math.min(targetHeight, MAX_WINDOW_HEIGHT));
@@ -112,18 +114,34 @@ ipcMain.handle('toggleWindowMode', (_event, data) => {
     }
 
     // Only resize/reposition if needed
-    if (targetWidth !== currentBounds.width || 
-        targetHeight !== currentBounds.height ||
-        targetX !== currentBounds.x ||
-        targetY !== currentBounds.y
-        ) {
-      mainWindow.setBounds({
-        width: targetWidth,
-        height: targetHeight,
-        x: targetX,
-        y: targetY
-      });
+    // Separate size and position steps for potential timing issues
+    let sizeChanged = false;
+    if (targetWidth !== currentBounds.width || targetHeight !== currentBounds.height) {
+      mainWindow.setSize(targetWidth, targetHeight, false); // Set size without animation
+      sizeChanged = true;
     }
+
+    // Recalculate targetX *after* potential resize and before setting position
+    // This ensures we use the most up-to-date window width for centering
+    const currentWindowBounds = mainWindow.getBounds(); // Get potentially updated bounds
+    const currentDisplay = screen.getDisplayMatching(currentWindowBounds); // Get display based on current pos
+    const currentDisplayWidth = currentDisplay.workAreaSize.width;
+    const currentWindowWidth = currentWindowBounds.width;
+    
+    let finalTargetX;
+    if (data.mode === "minimized") {
+        finalTargetX = currentDisplayWidth - currentWindowWidth - 20; 
+        // mainWindow.setBackgroundColor('#141416'); // Reverted: Set opaque background for minimized
+    } else { // Initial & Recording
+        finalTargetX = Math.floor((currentDisplayWidth - currentWindowWidth) / 2);
+        // mainWindow.setBackgroundColor('#00000000'); // Reverted: Set back to transparent
+    }
+    
+    // Only set position if needed (position might differ even if coords are same due to display changes)
+    if (finalTargetX !== currentWindowBounds.x || targetY !== currentWindowBounds.y) {
+       mainWindow.setPosition(finalTargetX, targetY, false); // Set position without animation
+    }
+
     return { success: true };
   } catch (error) {
     console.error("Failed to toggle window mode:", error);
